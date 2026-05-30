@@ -60,6 +60,259 @@ function computeGapTopY(difficulty, canvasHeight, fgHeight, pipeHeight) {
 	return center + offset;
 }
 
+var MEDAL_STORAGE_KEY = 'flappy-bird-medals';
+
+var MEDAL_TIERS = [
+	{ id: 'bronze', name: 'Bronze', threshold: 5, color: '#cd7f32', border: '#8b5a2b', label: 'B' },
+	{ id: 'silver', name: 'Silver', threshold: 10, color: '#c0c0c0', border: '#808080', label: 'S' },
+	{ id: 'gold', name: 'Gold', threshold: 25, color: '#ffd700', border: '#daa520', label: 'G' },
+	{ id: 'platinum', name: 'Platinum', threshold: 50, color: '#e5e4e2', border: '#a8a8a8', label: 'P' },
+	{ id: 'diamond', name: 'Diamond', threshold: 100, color: '#7ec8e3', border: '#4aa3c7', label: 'D' }
+];
+
+function getMedalForScore(gameScore) {
+	var earned = null;
+	for (var i = 0; i < MEDAL_TIERS.length; i++) {
+		if (gameScore >= MEDAL_TIERS[i].threshold) {
+			earned = MEDAL_TIERS[i];
+		}
+	}
+	return earned;
+}
+
+function getNextMedal(gameScore) {
+	for (var i = 0; i < MEDAL_TIERS.length; i++) {
+		if (gameScore < MEDAL_TIERS[i].threshold) {
+			return {
+				medal: MEDAL_TIERS[i],
+				pointsNeeded: MEDAL_TIERS[i].threshold - gameScore,
+				prevThreshold: i > 0 ? MEDAL_TIERS[i - 1].threshold : 0
+			};
+		}
+	}
+	return null;
+}
+
+function getMedalProgress(gameScore) {
+	var next = getNextMedal(gameScore);
+	if (!next) {
+		return {
+			complete: true,
+			ratio: 1,
+			pointsNeeded: 0,
+			nextMedal: null,
+			earned: getMedalForScore(gameScore)
+		};
+	}
+	var range = next.medal.threshold - next.prevThreshold;
+	var progress = gameScore - next.prevThreshold;
+	return {
+		complete: false,
+		ratio: range > 0 ? Math.min(1, Math.max(0, progress / range)) : 0,
+		pointsNeeded: next.pointsNeeded,
+		nextMedal: next.medal,
+		earned: getMedalForScore(gameScore)
+	};
+}
+
+function loadUnlockedMedals() {
+	if (typeof localStorage === 'undefined') {
+		return [];
+	}
+	try {
+		var raw = localStorage.getItem(MEDAL_STORAGE_KEY);
+		if (!raw) {
+			return [];
+		}
+		var parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch (e) {
+		return [];
+	}
+}
+
+function saveUnlockedMedals(ids) {
+	if (typeof localStorage === 'undefined') {
+		return;
+	}
+	try {
+		localStorage.setItem(MEDAL_STORAGE_KEY, JSON.stringify(ids));
+	} catch (e) {}
+}
+
+function unlockMedalsForScore(gameScore, currentUnlocked) {
+	var unlocked = currentUnlocked.slice();
+	var changed = false;
+	for (var i = 0; i < MEDAL_TIERS.length; i++) {
+		if (gameScore >= MEDAL_TIERS[i].threshold && unlocked.indexOf(MEDAL_TIERS[i].id) === -1) {
+			unlocked.push(MEDAL_TIERS[i].id);
+			changed = true;
+		}
+	}
+	return { unlocked: unlocked, changed: changed };
+}
+
+function drawMedalBadge(ctx, x, y, radius, medal, options) {
+	options = options || {};
+	var alpha = options.alpha == null ? 1 : options.alpha;
+	var showLabel = options.showLabel !== false;
+
+	ctx.save();
+	ctx.globalAlpha = alpha;
+
+	ctx.beginPath();
+	ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
+	ctx.fillStyle = medal.border;
+	ctx.fill();
+
+	ctx.beginPath();
+	ctx.arc(x, y, radius, 0, Math.PI * 2);
+	var gradient = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.1, x, y, radius);
+	gradient.addColorStop(0, '#ffffff');
+	gradient.addColorStop(0.35, medal.color);
+	gradient.addColorStop(1, medal.border);
+	ctx.fillStyle = gradient;
+	ctx.fill();
+
+	ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+	ctx.lineWidth = 1.5;
+	ctx.stroke();
+
+	if (showLabel) {
+		ctx.fillStyle = '#2c2c2c';
+		ctx.font = 'bold ' + Math.round(radius * 1.1) + 'px sans-serif';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(medal.label, x, y + 1);
+	}
+
+	ctx.restore();
+}
+
+function drawMedalProgressBar(ctx, x, y, barWidth, barHeight, ratio, fillColor) {
+	ctx.save();
+	ctx.fillStyle = 'rgba(0,0,0,0.25)';
+	ctx.fillRect(x, y, barWidth, barHeight);
+	ctx.fillStyle = fillColor || '#ffd700';
+	ctx.fillRect(x, y, barWidth * Math.min(1, Math.max(0, ratio)), barHeight);
+	ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+	ctx.lineWidth = 1;
+	ctx.strokeRect(x + 0.5, y + 0.5, barWidth - 1, barHeight - 1);
+	ctx.restore();
+}
+
+function drawMedalHud(ctx, gameScore) {
+	var progress = getMedalProgress(gameScore);
+	if (progress.complete) {
+		return;
+	}
+
+	var medal = progress.nextMedal;
+	var padX = 10;
+	var barWidth = Math.min(120, width - padX * 2);
+	var barHeight = 8;
+	var badgeRadius = 11;
+	var xRight = width - padX;
+	var barX = xRight - barWidth;
+	var barY = 52;
+
+	drawMedalBadge(ctx, xRight - badgeRadius, barY + barHeight / 2, badgeRadius, medal, { showLabel: false });
+	drawMedalProgressBar(ctx, barX, barY, barWidth - badgeRadius * 2 - 6, barHeight, progress.ratio, medal.color);
+
+	ctx.save();
+	ctx.fillStyle = '#ffffff';
+	ctx.font = '11px sans-serif';
+	ctx.textAlign = 'right';
+	ctx.textBaseline = 'bottom';
+	ctx.fillText(progress.pointsNeeded + ' to ' + medal.name, xRight, barY - 4);
+	ctx.restore();
+}
+
+function drawMedalGameOver(ctx, gameScore) {
+	var progress = getMedalProgress(gameScore);
+	var panelX = width / 2 - 110;
+	var panelY = height - 228;
+	var panelW = 220;
+	var panelH = progress.complete ? 58 : 82;
+
+	ctx.save();
+	ctx.fillStyle = 'rgba(0,0,0,0.35)';
+	ctx.fillRect(panelX, panelY, panelW, panelH);
+	ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+	ctx.lineWidth = 1;
+	ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+
+	if (progress.earned) {
+		drawMedalBadge(ctx, panelX + 28, panelY + panelH / 2, 18, progress.earned);
+		ctx.fillStyle = '#ffffff';
+		ctx.font = 'bold 13px sans-serif';
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(progress.earned.name + ' Medal!', panelX + 54, panelY + 22);
+	} else {
+		ctx.fillStyle = '#ffffff';
+		ctx.font = '12px sans-serif';
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		ctx.fillText('No medal yet', panelX + 14, panelY + 22);
+	}
+
+	if (progress.complete) {
+		ctx.fillStyle = '#ffe066';
+		ctx.font = '11px sans-serif';
+		ctx.textAlign = 'center';
+		ctx.fillText('All medals unlocked!', width / 2, panelY + panelH - 16);
+	} else {
+		var medal = progress.nextMedal;
+		var barX = panelX + 14;
+		var barY = panelY + 44;
+		var barW = panelW - 28;
+		drawMedalProgressBar(ctx, barX, barY, barW, 10, progress.ratio, medal.color);
+		ctx.fillStyle = '#ffffff';
+		ctx.font = '11px sans-serif';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'top';
+		ctx.fillText(
+			progress.pointsNeeded + ' point' + (progress.pointsNeeded === 1 ? '' : 's') + ' to ' + medal.name,
+			width / 2,
+			barY + 14
+		);
+	}
+
+	ctx.restore();
+}
+
+function drawUnlockedMedalsRow(ctx, unlockedIds, y) {
+	if (!unlockedIds.length) {
+		return;
+	}
+
+	var badgeRadius = 9;
+	var gap = 6;
+	var totalWidth = unlockedIds.length * (badgeRadius * 2 + gap) - gap;
+	var startX = width / 2 - totalWidth / 2 + badgeRadius;
+
+	ctx.save();
+	ctx.fillStyle = 'rgba(255,255,255,0.85)';
+	ctx.font = '10px sans-serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'bottom';
+	ctx.fillText('Collection', width / 2, y - 6);
+
+	for (var i = 0; i < unlockedIds.length; i++) {
+		for (var j = 0; j < MEDAL_TIERS.length; j++) {
+			if (MEDAL_TIERS[j].id === unlockedIds[i]) {
+				drawMedalBadge(ctx, startX + i * (badgeRadius * 2 + gap), y + badgeRadius, badgeRadius, MEDAL_TIERS[j], {
+					showLabel: true
+				});
+				break;
+			}
+		}
+	}
+
+	ctx.restore();
+}
+
 var
 
 canvas,
@@ -77,6 +330,10 @@ frames = 0,
 score = 0,
 
 best = 0,
+
+unlockedMedals = [],
+
+_scoreProcessed = false,
 
 okbtn,
 
@@ -295,6 +552,7 @@ function onpress(evt){
 				pipes.reset();
 				currentState = states.Splash;
 				score = 0;
+				_scoreProcessed = false;
 			}
 			break;
 
@@ -320,6 +578,7 @@ function main(){
 	ctx = setupHiDpiCanvas(canvas, width, height);
 
 	currentState = states.Splash;
+	unlockedMedals = loadUnlockedMedals();
 	
 	document.body.appendChild(canvas);
 
@@ -365,6 +624,14 @@ function update(dt){
 		fgpos = (fgpos - getPipeDifficulty(score).speed * dt) % 14;
 	} else {
 		best = Math.max(best, score);
+		if(!_scoreProcessed){
+			_scoreProcessed = true;
+			var medalResult = unlockMedalsForScore(score, unlockedMedals);
+			unlockedMedals = medalResult.unlocked;
+			if(medalResult.changed){
+				saveUnlockedMedals(unlockedMedals);
+			}
+		}
 	}
 	if (currentState === states.Game)
 		pipes.update(dt);	
@@ -398,8 +665,12 @@ function render(){
 		s_numberS.draw(ctx, width - 100, height - 304, score)
 		s_numberS.draw(ctx, width - 100, height - 262, best)
 
+		drawMedalGameOver(ctx, score);
+		drawUnlockedMedalsRow(ctx, unlockedMedals, height - 168);
+
 	}else{
 		s_numberB.draw(ctx, width/2, 20, score)
+		drawMedalHud(ctx, score);
 	}
 
 
@@ -410,7 +681,15 @@ if(typeof module !== 'undefined' && module.exports){
 		getPipeDifficulty: getPipeDifficulty,
 		hasPassedPipe: hasPassedPipe,
 		computeGapTopY: computeGapTopY,
-		PHYSICS: PHYSICS
+		PHYSICS: PHYSICS,
+		MEDAL_TIERS: MEDAL_TIERS,
+		MEDAL_STORAGE_KEY: MEDAL_STORAGE_KEY,
+		getMedalForScore: getMedalForScore,
+		getNextMedal: getNextMedal,
+		getMedalProgress: getMedalProgress,
+		loadUnlockedMedals: loadUnlockedMedals,
+		saveUnlockedMedals: saveUnlockedMedals,
+		unlockMedalsForScore: unlockMedalsForScore
 	};
 }else{
 	main();

@@ -78,3 +78,33 @@ test('flappy bird pipe helpers handle spacing and scoring', () => {
   const gapTop = helpers.computeGapTopY(easy, 480, 112, 400);
   assert.ok(gapTop >= 48 && gapTop <= 248, 'gap stays inside playable area');
 });
+
+test('flappy bird medal helpers resolve tiers and progress', () => {
+  const helpers = require(path.join(root, 'flappy-bird/game.js'));
+
+  assert.equal(helpers.getMedalForScore(0), null);
+  assert.equal(helpers.getMedalForScore(4), null);
+  assert.equal(helpers.getMedalForScore(5).id, 'bronze');
+  assert.equal(helpers.getMedalForScore(25).id, 'gold');
+  assert.equal(helpers.getMedalForScore(100).id, 'diamond');
+
+  const nextFromZero = helpers.getNextMedal(0);
+  assert.equal(nextFromZero.medal.id, 'bronze');
+  assert.equal(nextFromZero.pointsNeeded, 5);
+
+  const progress = helpers.getMedalProgress(8);
+  assert.equal(progress.nextMedal.id, 'silver');
+  assert.equal(progress.pointsNeeded, 2);
+  assert.ok(Math.abs(progress.ratio - 0.6) < 0.001, 'progress spans bronze to silver');
+
+  const maxProgress = helpers.getMedalProgress(150);
+  assert.equal(maxProgress.complete, true);
+  assert.equal(maxProgress.nextMedal, null);
+
+  const unlocked = helpers.unlockMedalsForScore(12, ['bronze']);
+  assert.deepEqual(unlocked.unlocked.sort(), ['bronze', 'silver']);
+  assert.equal(unlocked.changed, true);
+
+  const unchanged = helpers.unlockMedalsForScore(12, unlocked.unlocked.slice());
+  assert.equal(unchanged.changed, false);
+});
