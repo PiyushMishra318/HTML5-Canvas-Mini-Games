@@ -10,14 +10,210 @@ function setupHiDpiCanvas(canvas, logicalWidth, logicalHeight) {
 	return context;
 }
 
-function drawStarfield(ctx, w, h, frame) {
-	for (var i = 0; i < 40; i++) {
-		var x = (i * 97 + frame * 0.4) % w;
-		var y = (i * 53 + frame * 0.7) % h;
-		var size = (i % 3) + 1;
-		ctx.fillStyle = 'rgba(255,255,255,' + (0.2 + (i % 5) * 0.12) + ')';
-		ctx.fillRect(x, y, size, size);
+var STAR_LAYERS = [
+	{ count: 90, speed: 18, maxSize: 1.4, baseAlpha: 0.28 },
+	{ count: 55, speed: 42, maxSize: 2.2, baseAlpha: 0.52 },
+	{ count: 28, speed: 88, maxSize: 3.2, baseAlpha: 0.82 }
+];
+
+var stars = [];
+var starTime = 0;
+
+function seededRandom(seed) {
+	var x = Math.sin(seed * 127.1 + seed * 311.7) * 43758.5453;
+	return x - Math.floor(x);
+}
+
+function initStarfield(w, h) {
+	stars = [];
+	for (var layer = 0; layer < STAR_LAYERS.length; layer++) {
+		var cfg = STAR_LAYERS[layer];
+		for (var i = 0; i < cfg.count; i++) {
+			var seed = layer * 1000 + i;
+			stars.push({
+				layer: layer,
+				x: seededRandom(seed) * w,
+				y: seededRandom(seed + 1) * h,
+				size: 0.6 + seededRandom(seed + 2) * cfg.maxSize,
+				phase: seededRandom(seed + 3) * Math.PI * 2,
+				twinkleSpeed: 1.2 + seededRandom(seed + 4) * 2.8,
+				twinkleAmp: 0.15 + seededRandom(seed + 5) * 0.35
+			});
+		}
 	}
+}
+
+function updateStarfield(dt, w, h) {
+	starTime += dt;
+	for (var i = 0; i < stars.length; i++) {
+		var star = stars[i];
+		var speed = STAR_LAYERS[star.layer].speed;
+		star.y += speed * dt;
+		if (star.y > h + star.size) {
+			star.y = -star.size;
+			star.x = Math.random() * w;
+		}
+	}
+}
+
+function drawStarfield(ctx, w, h) {
+	for (var i = 0; i < stars.length; i++) {
+		var star = stars[i];
+		var cfg = STAR_LAYERS[star.layer];
+		var twinkle = 0.5 + 0.5 * Math.sin(starTime * star.twinkleSpeed + star.phase);
+		var alpha = cfg.baseAlpha * (1 - star.twinkleAmp + star.twinkleAmp * twinkle);
+		ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+		if (star.size <= 1.2) {
+			ctx.fillRect(star.x, star.y, star.size, star.size);
+		} else {
+			ctx.beginPath();
+			ctx.arc(star.x, star.y, star.size * 0.5, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	}
+}
+
+var MOTHERSHIP = {
+	DRIFT_X: 12,
+	DRIFT_Y: 6,
+	DAMAGE: 15,
+	COOLDOWN: 1.4,
+	WARNING_PULSE: 2.4
+};
+
+var mothership = {
+	x: 0,
+	y: 0,
+	width: 0,
+	height: 0,
+	hitW: 0,
+	hitH: 0,
+	hitOffsetX: 0,
+	hitOffsetY: 0,
+	damageCooldown: 0
+};
+
+function initMothership(w, h) {
+	var scale = Math.min(w, h) / 900;
+	mothership.width = Math.max(280, w * 0.55);
+	mothership.height = mothership.width * 0.38;
+	mothership.hitW = mothership.width * 0.62;
+	mothership.hitH = mothership.height * 0.55;
+	mothership.hitOffsetX = (mothership.width - mothership.hitW) / 2;
+	mothership.hitOffsetY = mothership.height * 0.22;
+	mothership.x = w * 0.5 - mothership.width * 0.5;
+	mothership.y = h * 0.18;
+	mothership.damageCooldown = 0;
+	mothership._scale = scale;
+}
+
+function updateMothership(dt, w, h) {
+	mothership.x += Math.sin(starTime * 0.18) * MOTHERSHIP.DRIFT_X * dt;
+	mothership.y += Math.cos(starTime * 0.14) * MOTHERSHIP.DRIFT_Y * dt;
+	mothership.x = Math.max(-mothership.width * 0.15, Math.min(w - mothership.width * 0.85, mothership.x));
+	mothership.y = Math.max(h * 0.06, Math.min(h * 0.42, mothership.y));
+	if (mothership.damageCooldown > 0) {
+		mothership.damageCooldown -= dt;
+	}
+}
+
+function getMothershipHitbox() {
+	return {
+		x: mothership.x + mothership.hitOffsetX,
+		y: mothership.y + mothership.hitOffsetY,
+		w: mothership.hitW,
+		h: mothership.hitH
+	};
+}
+
+function circleRectCollision(cx, cy, radius, rect) {
+	var closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.w));
+	var closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.h));
+	var dx = cx - closestX;
+	var dy = cy - closestY;
+	return dx * dx + dy * dy < radius * radius;
+}
+
+function drawMothership(ctx) {
+	var mx = mothership.x;
+	var my = mothership.y;
+	var mw = mothership.width;
+	var mh = mothership.height;
+	var pulse = 0.55 + 0.45 * Math.sin(starTime * MOTHERSHIP.WARNING_PULSE);
+
+	ctx.save();
+	ctx.translate(mx, my);
+
+	var hullGrad = ctx.createLinearGradient(0, 0, 0, mh);
+	hullGrad.addColorStop(0, 'rgba(12, 18, 36, 0.92)');
+	hullGrad.addColorStop(0.5, 'rgba(6, 10, 24, 0.96)');
+	hullGrad.addColorStop(1, 'rgba(2, 4, 12, 0.98)');
+
+	ctx.fillStyle = hullGrad;
+	ctx.beginPath();
+	ctx.moveTo(mw * 0.5, mh * 0.02);
+	ctx.lineTo(mw * 0.92, mh * 0.38);
+	ctx.lineTo(mw * 0.78, mh * 0.88);
+	ctx.lineTo(mw * 0.22, mh * 0.88);
+	ctx.lineTo(mw * 0.08, mh * 0.38);
+	ctx.closePath();
+	ctx.fill();
+
+	ctx.strokeStyle = 'rgba(248, 113, 113, ' + (0.25 + pulse * 0.35) + ')';
+	ctx.lineWidth = 2;
+	ctx.stroke();
+
+	ctx.fillStyle = 'rgba(18, 28, 52, 0.85)';
+	ctx.beginPath();
+	ctx.moveTo(0, mh * 0.42);
+	ctx.lineTo(mw * 0.14, mh * 0.55);
+	ctx.lineTo(mw * 0.14, mh * 0.78);
+	ctx.lineTo(0, mh * 0.72);
+	ctx.closePath();
+	ctx.fill();
+	ctx.beginPath();
+	ctx.moveTo(mw, mh * 0.42);
+	ctx.lineTo(mw * 0.86, mh * 0.55);
+	ctx.lineTo(mw * 0.86, mh * 0.78);
+	ctx.lineTo(mw, mh * 0.72);
+	ctx.closePath();
+	ctx.fill();
+
+	var lightColors = ['#f87171', '#fb923c', '#f87171'];
+	for (var l = 0; l < 3; l++) {
+		var lx = mw * (0.32 + l * 0.18);
+		var ly = mh * 0.72;
+		var lightPulse = 0.4 + 0.6 * Math.sin(starTime * 3.2 + l * 1.4);
+		ctx.fillStyle = 'rgba(248, 113, 113, ' + (0.35 + lightPulse * 0.45) + ')';
+		ctx.beginPath();
+		ctx.arc(lx, ly, 4 + lightPulse * 2, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.shadowColor = lightColors[l];
+		ctx.shadowBlur = 10 + lightPulse * 8;
+		ctx.fill();
+		ctx.shadowBlur = 0;
+	}
+
+	ctx.fillStyle = 'rgba(125, 249, 255, 0.08)';
+	ctx.beginPath();
+	ctx.ellipse(mw * 0.5, mh * 0.28, mw * 0.12, mh * 0.14, 0, 0, Math.PI * 2);
+	ctx.fill();
+
+	ctx.restore();
+}
+
+function checkMothershipCollision() {
+	if (mothership.damageCooldown > 0 || !player.width) return;
+	var hitbox = getMothershipHitbox();
+	var cx = player.x + player.width / 2;
+	var cy = player.y + player.height / 2;
+	if (!circleRectCollision(cx, cy, player.radius * 0.85, hitbox)) return;
+
+	mothership.damageCooldown = MOTHERSHIP.COOLDOWN;
+	health -= MOTHERSHIP.DAMAGE;
+	triggerScreenShake(10);
+	spawnParticles(cx, cy, 16, '#f87171', 200, 0.4);
+	spawnParticles(cx, cy, 8, '#7df9ff', 140, 0.25);
 }
 
 var MOVE = {
@@ -111,6 +307,8 @@ function resizeCanvas() {
 	height = window.innerHeight;
 	isMobile = width <= 500;
 	ctx = setupHiDpiCanvas(canvas, width, height);
+	initStarfield(width, height);
+	initMothership(width, height);
 	clampPlayer();
 }
 
@@ -467,15 +665,17 @@ function drawTitleScreen() {
 			'Left joystick — move',
 			'Right button — shoot',
 			'Collisions −20 · Escapes −5',
+			'Mothership hazard −15 shields',
 			'Shields start at 100%'
 		]
 		: [
 			'Arrow keys — move',
 			'Spacebar — shoot',
 			'Collisions cost 20 shields · Escapes cost 5',
+			'Avoid the drifting mothership — 15 shield damage',
 			'Shields start at full strength'
 		];
-	var panelH = isMobile ? 118 : 148;
+	var panelH = isMobile ? 136 : 168;
 	var panelY = isMobile ? height * 0.42 : height * 0.48;
 	drawGlassPanel(panelX, panelY, panelW, panelH, isMobile ? 12 : 14);
 	drawCenteredText('HOW TO PLAY', width / 2, panelY + (isMobile ? 14 : 18), bodySize + ' ' + HUD.FONT, HUD.COLORS.label, null);
@@ -544,28 +744,35 @@ function draw(now) {
 	}
 
 	ctx.drawImage(bgImg, 0, 0, width, height);
-	drawStarfield(ctx, width, height, frame);
+	updateStarfield(dt, width, height);
+	drawStarfield(ctx, width, height);
 
 	if (flag === 0) {
+		updateMothership(dt, width, height);
+		drawMothership(ctx);
 		drawTitleScreen();
 	} else {
 		if (!gameOver) {
 			updatePlayer(dt);
+			updateMothership(dt, width, height);
 			if (map[32]) fireBeam();
 			if (fireCooldown > 0) fireCooldown -= dt;
 
 			updateBeams(dt);
 			updateEnemies(dt);
 			checkBeamHits();
+			checkMothershipCollision();
 			updateParticles(dt);
 
 			if (health <= 0) {
 				gameOver = true;
 			}
 		} else {
+			updateMothership(dt, width, height);
 			updateParticles(dt);
 		}
 
+		drawMothership(ctx);
 		ctx.drawImage(playerImg, player.x, player.y);
 
 		for (var j = 0; j < beam.length; j++) {
@@ -625,6 +832,8 @@ function initGameState() {
 		x: player.y - player.height,
 		y: player.x + player.width / 2
 	}];
+
+	mothership.damageCooldown = 0;
 }
 
 playerImg.onload = function() { initGameState(); };
