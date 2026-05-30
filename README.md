@@ -22,10 +22,10 @@ Or open `index.html` in a browser via any static file server (canvas games need 
 
 ## Deploy
 
-**Live on Vercel:** [https://canvas-js-games.vercel.app](https://canvas-js-games.vercel.app)
+**Live on Vercel:** [https://html5-canvas-games.vercel.app](https://html5-canvas-games.vercel.app)
 
-- [Flappy Bird](https://canvas-js-games.vercel.app/flappy-bird)
-- [Space Shooter](https://canvas-js-games.vercel.app/space-shooter)
+- [Flappy Bird](https://html5-canvas-games.vercel.app/flappy-bird)
+- [Space Shooter](https://html5-canvas-games.vercel.app/space-shooter)
 
 You can also enable [GitHub Pages](https://docs.github.com/en/pages) from the `master` branch root. Games are at:
 
