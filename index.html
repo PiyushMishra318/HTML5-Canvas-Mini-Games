@@ -60,6 +60,24 @@
     }
     .header__github:hover { text-decoration: underline; }
 
+  
+/* --- portfolio theme: dark mode + animated bg --- */
+:root,[data-theme="light"]{color-scheme:light;--card:var(--surface,#fff)}
+[data-theme="dark"]{color-scheme:dark}
+:root{--card:var(--surface,#fff)}
+.card{background:var(--card)}
+.bg-animation{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+body>*:not(.bg-animation){position:relative;z-index:1}
+.header,header.header,.site-header{background:color-mix(in srgb,var(--bg) 88%,transparent)!important;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.site-footer,.footer,footer{background:color-mix(in srgb,var(--bg) 92%,transparent)}
+.theme-toggle{position:absolute;top:1rem;right:1rem;z-index:110;width:2.5rem;height:2.5rem;border-radius:50%;border:1px solid var(--border,#334155);background:var(--card,var(--surface,#fff));color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;padding:0;box-shadow:0 2px 8px rgb(0 0 0/12%);transition:transform .2s ease,border-color .2s}
+.theme-toggle:hover{transform:scale(1.06);border-color:var(--accent)}
+.header,.header__inner{position:relative}
+[data-theme=light] .theme-toggle__icon--moon,[data-theme=dark] .theme-toggle__icon--sun{display:none}
+[data-theme=light]{--bg:#f4f6f8;--text:#0f172a;--card:#fff;--surface:#fff;--border:#e2e8f0;--muted:#64748b}
+[data-theme=dark]{--bg:#0f1419;--text:#e7ecf3;--card:#1a222d;--surface:#1a222d;--border:#2a3441;--muted:#9aa8b8}
+
+body.theme-arcade .bg-animation{background:radial-gradient(circle at 20% 30%,#ff00ff22,transparent 40%),radial-gradient(circle at 80% 70%,#00ffff22,transparent 40%),#0a0a12}body.theme-arcade .bg-animation::before{content:"";inset:0;position:absolute;background-image:linear-gradient(90deg,transparent 49%,#ff00ff33 50%,transparent 51%),linear-gradient(0deg,transparent 49%,#00ffff33 50%,transparent 51%);background-size:60px 60px;animation:ag2 4s infinite}@keyframes ag2{50%{opacity:.6}}[data-theme=light] body.theme-arcade .bg-animation{background:#f0f4ff}
   </style>
 </head>
 <body>
@@ -76,5 +94,41 @@
     </ul>
   </main>
   <footer class="site-footer footer"><p>MIT © 2026 · <a href="https://piyushm.dev">piyushm.dev</a> · <a href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a></p></footer>
+  <script src="/theme.js"></script>
+<script>
+(function () {
+  var STORAGE_KEY = "portfolio-theme";
+  var root = document.documentElement;
+  function systemDark() {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function apply(theme) {
+    root.setAttribute("data-theme", theme);
+    var btn = document.getElementById("theme-toggle");
+    if (btn) {
+      btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+      btn.setAttribute("title", theme === "dark" ? "Light mode" : "Dark mode");
+    }
+  }
+  function resolve(stored) {
+    if (stored === "light" || stored === "dark") return stored;
+    return systemDark() ? "dark" : "light";
+  }
+  apply(resolve(localStorage.getItem(STORAGE_KEY)));
+  document.addEventListener("DOMContentLoaded", function () {
+    var btn = document.getElementById("theme-toggle");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      localStorage.setItem(STORAGE_KEY, next);
+      apply(next);
+    });
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    apply(systemDark() ? "dark" : "light");
+  });
+})();
+</script>
 </body>
 </html>
