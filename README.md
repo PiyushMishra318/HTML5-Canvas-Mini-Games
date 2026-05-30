@@ -1,4 +1,4 @@
-# HTML5 Canvas Mini Games
+# HTML5-Canvas-Mini-Games
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
@@ -12,8 +12,8 @@ Vanilla **HTML5 Canvas** mini-games with **high-DPI scaling** and low-latency `d
 ## Play locally
 
 ```bash
-git clone git@github.com:PiyushMishra318/Canvas-Js-Games.git
-cd Canvas-Js-Games
+git clone git@github.com:PiyushMishra318/HTML5-Canvas-Mini-Games.git
+cd HTML5-Canvas-Mini-Games
 npm start
 # open http://localhost:3000
 ```
