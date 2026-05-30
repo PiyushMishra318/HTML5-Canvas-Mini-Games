@@ -26,8 +26,39 @@ var PHYSICS = {
 	ROTATION_LERP: 10,
 	JUMP_BUFFER: 0.12,
 	COYOTE_TIME: 0.07,
-	PIPE_SPEED: 132
+	PIPE_SPEED: 132,
+	PIPE_SPEED_MAX: 210,
+	PIPE_GAP_START: 128,
+	PIPE_GAP_MIN: 82,
+	PIPE_SPAWN_INTERVAL: 1.75,
+	PIPE_SPAWN_INTERVAL_MIN: 1.45,
+	PIPE_MIN_HORIZONTAL_GAP: 168,
+	PIPE_DIFFICULTY_RAMP: 25
 };
+
+function getPipeDifficulty(passedPipes) {
+	var t = Math.min(1, passedPipes / PHYSICS.PIPE_DIFFICULTY_RAMP);
+	return {
+		speed: PHYSICS.PIPE_SPEED + (PHYSICS.PIPE_SPEED_MAX - PHYSICS.PIPE_SPEED) * t,
+		gap: Math.round(PHYSICS.PIPE_GAP_START - (PHYSICS.PIPE_GAP_START - PHYSICS.PIPE_GAP_MIN) * t),
+		gapJitter: 45 + 155 * t,
+		spawnInterval: PHYSICS.PIPE_SPAWN_INTERVAL -
+			(PHYSICS.PIPE_SPAWN_INTERVAL - PHYSICS.PIPE_SPAWN_INTERVAL_MIN) * t * 0.55
+	};
+}
+
+function hasPassedPipe(pipe, birdX) {
+	return !pipe.scored && birdX > pipe.x + pipe.width;
+}
+
+function computeGapTopY(difficulty, canvasHeight, fgHeight, pipeHeight) {
+	var minGapTop = canvasHeight - fgHeight - 120 - difficulty.gapJitter;
+	var maxGapTop = canvasHeight - fgHeight - 120;
+	var center = (minGapTop + maxGapTop) / 2;
+	var halfRange = (maxGapTop - minGapTop) / 2;
+	var offset = (Math.random() + Math.random() - 1) * halfRange;
+	return center + offset;
+}
 
 var
 
@@ -152,64 +183,77 @@ bird = {
 pipes = {
 
 	_pipes : [],
+	_spawnTimer : 0.9,
 
 
 	reset : function(){
 		this._pipes = [];
+		this._spawnTimer = 0.9;
+	},
+
+	_spawnPipe : function(difficulty){
+		var pipeHeight = s_pipeSouth.height;
+		var gapTop = computeGapTopY(difficulty, height, s_fg.height, pipeHeight);
+		this._pipes.push({
+			x : width + 10,
+			y : gapTop - pipeHeight,
+			width : s_pipeSouth.width,
+			height : pipeHeight,
+			gap : difficulty.gap,
+			scored : false
+		});
 	},
 
 	update : function(dt){
 
-		if(frames % 100 === 0){
-			var _y = height - (s_pipeSouth.height + s_fg.height + 120 + 200 * Math.random());
-			this._pipes.push({
-				x : 500,
-				y : _y,
-				width : s_pipeSouth.width,
-				height : s_pipeSouth.height
-			});
-		}
+		var difficulty = getPipeDifficulty(score);
+		var pipeSpeed = difficulty.speed * dt;
 
-		var pipeSpeed = PHYSICS.PIPE_SPEED * dt;
+		this._spawnTimer -= dt;
+		var lastPipe = this._pipes[this._pipes.length - 1];
+		var lastX = lastPipe ? lastPipe.x : -9999;
+		if(this._spawnTimer <= 0 && lastX < width - PHYSICS.PIPE_MIN_HORIZONTAL_GAP){
+			this._spawnPipe(difficulty);
+			this._spawnTimer = difficulty.spawnInterval;
+		}
 
 		for (var i = 0, len = this._pipes.length; i < len; i++){
 			var p = this._pipes[i];
 
-			if(i === 0){
+			if(hasPassedPipe(p, bird.x)){
+				p.scored = true;
+				score++;
+			}
 
-
-
-				score += p.x === bird.x ? 1 : 0;
-
+			if(currentState === states.Game){
 				var cx = Math.min(Math.max(bird.x, p.x), p.x + p.width);
 				var cy1 = Math.min(Math.max(bird.y, p.y), p.y + p.height);
-				var cy2 = Math.min(Math.max(bird.y, p.y + 80 + p.height), p.y + 2*p.height +80);
+				var cy2 = Math.min(
+					Math.max(bird.y, p.y + p.gap + p.height),
+					p.y + p.gap + 2 * p.height
+				);
 
 				var dx = bird.x - cx;
 				var dy1 = bird.y - cy1;
 				var dy2 = bird.y - cy2;
 
-				var d1 = dx*dx + dy1*dy1;
-				var d2 = dx*dx + dy2*dy2;
+				var d1 = dx * dx + dy1 * dy1;
+				var d2 = dx * dx + dy2 * dy2;
 
-				var r = bird.radius*bird.radius;
+				var r = bird.radius * bird.radius;
 
-				if(r>d1 || r>d2){
-					currentState = states.Score;
-
-				if(bird.y > height)
+				if(r > d1 || r > d2){
 					currentState = states.Score;
 				}
 
-
- 
+				if(bird.y > height){
+					currentState = states.Score;
+				}
 			}
 
-
-
 			p.x -= pipeSpeed;
-			if(p.x < -50){
-				this._pipes.splice(i,1);
+			if(p.x < -p.width - 20){
+				this._pipes.splice(i, 1);
 				i--;
 				len--;
 			}
@@ -221,8 +265,8 @@ pipes = {
 		for (var i = 0, len = this._pipes.length; i < len; i++){
 			var p = this._pipes[i];
 			s_pipeSouth.draw(ctx, p.x, p.y);
-			s_pipeNorth.draw(ctx, p.x, p.y + 80 + p.height);
-			}
+			s_pipeNorth.draw(ctx, p.x, p.y + p.gap + p.height);
+		}
 	}
 };
 
@@ -318,7 +362,7 @@ function update(dt){
 	frames++;
 
 	if( currentState !== states.Score ){
-		fgpos = (fgpos - PHYSICS.PIPE_SPEED * dt) % 14;
+		fgpos = (fgpos - getPipeDifficulty(score).speed * dt) % 14;
 	} else {
 		best = Math.max(best, score);
 	}
@@ -361,4 +405,13 @@ function render(){
 
 }
 
-main();
+if(typeof module !== 'undefined' && module.exports){
+	module.exports = {
+		getPipeDifficulty: getPipeDifficulty,
+		hasPassedPipe: hasPassedPipe,
+		computeGapTopY: computeGapTopY,
+		PHYSICS: PHYSICS
+	};
+}else{
+	main();
+}

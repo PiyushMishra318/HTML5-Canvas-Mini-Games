@@ -59,3 +59,22 @@ test('dead PWA boilerplate directories were removed', () => {
   assert.equal(fs.existsSync(path.join(root, 'flappy-bird/js')), false);
   assert.equal(fs.existsSync(path.join(root, 'space-shooter/js')), false);
 });
+
+test('flappy bird pipe helpers handle spacing and scoring', () => {
+  const helpers = require(path.join(root, 'flappy-bird/game.js'));
+
+  const easy = helpers.getPipeDifficulty(0);
+  const hard = helpers.getPipeDifficulty(50);
+  assert.ok(easy.gap > hard.gap, 'gap should shrink as difficulty rises');
+  assert.ok(easy.speed < hard.speed, 'speed should increase with difficulty');
+  assert.ok(easy.gapJitter < hard.gapJitter, 'gap randomness should grow over time');
+  assert.ok(easy.spawnInterval >= hard.spawnInterval, 'spawn interval tightens slightly at high speed');
+
+  const pipe = { x: 100, width: 52, scored: false };
+  assert.equal(helpers.hasPassedPipe(pipe, 60), false);
+  assert.equal(helpers.hasPassedPipe(pipe, 153), true);
+  assert.equal(helpers.hasPassedPipe({ x: 100, width: 52, scored: true }, 200), false);
+
+  const gapTop = helpers.computeGapTopY(easy, 480, 112, 400);
+  assert.ok(gapTop >= 48 && gapTop <= 248, 'gap stays inside playable area');
+});
