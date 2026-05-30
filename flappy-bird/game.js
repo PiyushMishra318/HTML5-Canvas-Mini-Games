@@ -18,6 +18,17 @@ function drawSkyGradient(ctx, w, h) {
 	ctx.fillRect(0, 0, w, h);
 }
 
+var PHYSICS = {
+	GRAVITY: 980,
+	GRAVITY_RAMP: 420,
+	JUMP_VELOCITY: -310,
+	TERMINAL_VELOCITY: 520,
+	ROTATION_LERP: 10,
+	JUMP_BUFFER: 0.12,
+	COYOTE_TIME: 0.07,
+	PIPE_SPEED: 132
+};
+
 var
 
 canvas,
@@ -40,6 +51,8 @@ okbtn,
 
 currentState,
 
+lastTime = 0,
+
 states = {
 	Splash : 0,Game : 1,Score : 2
 },
@@ -53,15 +66,23 @@ bird = {
 	radius : 12,
 	animation : [0, 1, 2 , 1],
 	rotation : 0,
-	gravity : 0.25,
-	_jump : 4.6,
+	_jumpBuffer : 0,
+	_coyoteTimer : 0,
 
 
 	jump : function(){
-		this.velocity = -this._jump
+		this._jumpBuffer = PHYSICS.JUMP_BUFFER;
 	},
 
-	update : function(){
+	_tryJump : function(){
+		if(this._coyoteTimer > 0){
+			this.velocity = PHYSICS.JUMP_VELOCITY;
+			this._jumpBuffer = 0;
+			this._coyoteTimer = 0;
+		}
+	},
+
+	update : function(dt){
 
 		var n = currentState === states.Splash ? 10 : 5;
 		this.frame += frames%n === 0 ? 1 : 0;
@@ -70,37 +91,48 @@ bird = {
 		if( currentState === states.Splash){
 			this.y = height - 280 + 5 * Math.cos(frames/10);
 			this.rotation = 0;
+			this.velocity = 0;
+			this._coyoteTimer = PHYSICS.COYOTE_TIME;
 		}else{
-			this.velocity +=this.gravity;
-			this.y += this.velocity;
-		
-			if(this.y >= height - s_fg.height-10){
-				this.y = height - s_fg.height-10;
+			if(this._jumpBuffer > 0){
+				this._tryJump();
+				this._jumpBuffer -= dt;
+			}
+
+			var fallFactor = Math.max(0, this.velocity / PHYSICS.TERMINAL_VELOCITY);
+			var gravity = PHYSICS.GRAVITY + PHYSICS.GRAVITY_RAMP * fallFactor * fallFactor;
+			this.velocity += gravity * dt;
+			this.velocity = Math.min(this.velocity, PHYSICS.TERMINAL_VELOCITY);
+			this.y += this.velocity * dt;
+
+			var groundY = height - s_fg.height - 10;
+			if(this.y >= groundY){
+				this.y = groundY;
 
 				if(currentState === states.Game){
 					currentState = states.Score;
 				}
-				this.velocity = this._jump;
+				this.velocity = 0;
+				this._coyoteTimer = 0;
 			}else if(this.y <= 0){
 				this.y = 0;
 				if(currentState === states.Game){
 					currentState = states.Score;
 				}
-				this.velocity = this._jump;
-
+				this.velocity = 0;
+				this._coyoteTimer = 0;
+			}else{
+				this._coyoteTimer = PHYSICS.COYOTE_TIME;
 			}
 
-			if(this.velocity >= this._jump){
-				this.frame = 1;
-				this.rotation = Math.min(Math.PI/2, this.rotation + 0.3);
-			}else{
-				this.rotation = -0.4;
+			var targetRotation = Math.max(-0.35, Math.min(Math.PI / 2, this.velocity * 0.0028));
+			var rotBlend = Math.min(1, PHYSICS.ROTATION_LERP * dt);
+			this.rotation += (targetRotation - this.rotation) * rotBlend;
+
+			if(this.velocity < -40){
+				this.frame = this.animation.indexOf(1) >= 0 ? 1 : this.frame;
 			}
 		}
-
-
-
-
 	},
 
 	draw : function(ctx){
@@ -126,7 +158,7 @@ pipes = {
 		this._pipes = [];
 	},
 
-	update : function(){
+	update : function(dt){
 
 		if(frames % 100 === 0){
 			var _y = height - (s_pipeSouth.height + s_fg.height + 120 + 200 * Math.random());
@@ -137,6 +169,8 @@ pipes = {
 				height : s_pipeSouth.height
 			});
 		}
+
+		var pipeSpeed = PHYSICS.PIPE_SPEED * dt;
 
 		for (var i = 0, len = this._pipes.length; i < len; i++){
 			var p = this._pipes[i];
@@ -173,7 +207,7 @@ pipes = {
 
 
 
-			p.x -= 2;
+			p.x -= pipeSpeed;
 			if(p.x < -50){
 				this._pipes.splice(i,1);
 				i--;
@@ -258,6 +292,7 @@ function main(){
 			height : s_buttons.Ok.height
 		}
 
+		lastTime = performance.now();
 		run();
 	}
 
@@ -266,8 +301,10 @@ function main(){
 
 function run(){
 
-	var loop = function(){
-		update();
+	var loop = function(now){
+		var dt = Math.min(0.05, (now - lastTime) / 1000);
+		lastTime = now;
+		update(dt);
 		render();
 
 		window.requestAnimationFrame(loop, canvas);
@@ -276,20 +313,19 @@ function run(){
 
 }
 
-function update(){
+function update(dt){
 
 	frames++;
 
-
 	if( currentState !== states.Score ){
-		fgpos = (fgpos - 2) % 14;
+		fgpos = (fgpos - PHYSICS.PIPE_SPEED * dt) % 14;
 	} else {
 		best = Math.max(best, score);
 	}
 	if (currentState === states.Game)
-		pipes.update();	
+		pipes.update(dt);	
 
-	bird.update();
+	bird.update(dt);
 
 }
 
