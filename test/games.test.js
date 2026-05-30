@@ -108,3 +108,64 @@ test('flappy bird medal helpers resolve tiers and progress', () => {
   const unchanged = helpers.unlockMedalsForScore(12, unlocked.unlocked.slice());
   assert.equal(unchanged.changed, false);
 });
+
+function installFlappyLayoutGlobals(logicalWidth, logicalHeight) {
+  return {
+    width: logicalWidth,
+    height: logicalHeight,
+    okBtn: { width: 80, height: 28 },
+    scorePanel: { width: 226, height: 116 },
+    gameOverText: { width: 188, height: 38 },
+    fgSprite: { height: 112 },
+  };
+}
+
+function assertLayoutNoOverlap(layout) {
+  const gap = layout.gap;
+
+  assert.ok(layout.ok.y + layout.ok.h <= layout.fgTop, 'OK button stays above foreground');
+
+  const scoreBottom = layout.score.y + layout.score.h;
+  const medalBottom = layout.medalPanel.y + layout.medalPanel.h;
+
+  assert.ok(layout.medalPanel.y >= scoreBottom + gap - 1,
+    'medal panel sits below score panel with spacing');
+  assert.ok(layout.gameOver.y + layout.gameOver.h <= layout.score.y - gap + 1,
+    'game over title sits above score panel with spacing');
+
+  if (layout.collection.visible) {
+    const collectionTop = layout.collection.y - layout.collection.labelAbove;
+    assert.ok(medalBottom <= collectionTop - gap + 1,
+      'collection sits below medal panel with spacing');
+    assert.ok(layout.collection.y + layout.collection.h <= layout.ok.y - gap + 1,
+      'collection sits above OK with spacing');
+  } else {
+    assert.ok(medalBottom <= layout.ok.y - gap + 1,
+      'medal panel sits above OK with spacing');
+  }
+}
+
+test('flappy bird game over layout avoids panel overlap', () => {
+  const helpers = require(path.join(root, 'flappy-bird/game.js'));
+  const sizes = [
+    { width: 320, height: 480 },
+    { width: 400, height: 600 },
+  ];
+
+  for (const size of sizes) {
+    const layoutOpts = installFlappyLayoutGlobals(size.width, size.height);
+
+    const withCollection = helpers.computeGameOverLayout(3, ['bronze'], layoutOpts);
+    assertLayoutNoOverlap(withCollection);
+
+    const withoutCollection = helpers.computeGameOverLayout(0, [], layoutOpts);
+    assertLayoutNoOverlap(withoutCollection);
+
+    const maxMedals = helpers.computeGameOverLayout(
+      100,
+      ['bronze', 'silver', 'gold', 'platinum', 'diamond'],
+      layoutOpts,
+    );
+    assertLayoutNoOverlap(maxMedals);
+  }
+});

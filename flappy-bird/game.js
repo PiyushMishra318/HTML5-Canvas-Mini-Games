@@ -228,53 +228,74 @@ function drawMedalHud(ctx, gameScore) {
 	ctx.restore();
 }
 
-function computeGameOverLayout(gameScore, unlockedIds) {
-	var progress = getMedalProgress(gameScore);
-	var padX = Math.max(10, Math.round(width * 0.04));
-	var panelW = Math.min(260, width - padX * 2);
-	var panelX = (width - panelW) / 2;
-	var gap = Math.max(6, Math.round(height * 0.014));
-	var bottomPad = Math.max(10, Math.round(height * 0.022));
-	var topPad = Math.max(12, Math.round(height * 0.03));
+function computeGameOverLayout(gameScore, unlockedIds, opts) {
+	opts = opts || {};
+	var canvasW = opts.width != null ? opts.width : width;
+	var canvasH = opts.height != null ? opts.height : height;
+	var okBtn = opts.okBtn || s_buttons.Ok;
+	var scorePanel = opts.scorePanel || s_score;
+	var gameOverText = opts.gameOverText || s_text.GameOver;
+	var fgSprite = opts.fgSprite || s_fg;
 
-	var okH = s_buttons.Ok.height;
-	var okW = s_buttons.Ok.width;
-	var scoreH = s_score.height;
-	var scoreW = s_score.width;
-	var gameOverH = s_text.GameOver.height;
-	var gameOverW = s_text.GameOver.width;
+	var progress = getMedalProgress(gameScore);
+	var padX = Math.max(10, Math.round(canvasW * 0.04));
+	var panelW = Math.min(260, canvasW - padX * 2);
+	var panelX = (canvasW - panelW) / 2;
+	var gap = Math.max(8, Math.round(canvasH * 0.016));
+	var bottomPad = Math.max(12, Math.round(canvasH * 0.025));
+	var topPad = Math.max(12, Math.round(canvasH * 0.03));
+
+	var okH = okBtn.height;
+	var okW = okBtn.width;
+	var scoreH = scorePanel.height;
+	var scoreW = scorePanel.width;
+	var gameOverH = gameOverText.height;
+	var gameOverW = gameOverText.width;
 
 	var medalPanelH = progress.complete ? 50 : 76;
 	var hasCollection = unlockedIds && unlockedIds.length > 0;
-	var collectionBlockH = hasCollection ? 30 : 0;
+	var collectionBadgeH = 18;
+	var collectionLabelAbove = 16;
 
-	var fgTop = height - s_fg.height;
+	var fgTop = canvasH - fgSprite.height;
 	var okY = fgTop - bottomPad - okH;
-	var collectionY = okY - gap - (hasCollection ? 16 : 0);
-	var medalPanelY = okY - gap - collectionBlockH - gap - medalPanelH;
+	var collectionY = 0;
+	var medalPanelY;
+
+	if (hasCollection) {
+		collectionY = okY - gap - collectionBadgeH;
+		medalPanelY = collectionY - collectionLabelAbove - gap - medalPanelH;
+	} else {
+		medalPanelY = okY - gap - medalPanelH;
+	}
+
 	var scoreY = medalPanelY - gap - scoreH;
 	var gameOverY = scoreY - gap - gameOverH;
 
 	if (gameOverY < topPad) {
 		var shift = topPad - gameOverY;
 		okY += shift;
-		collectionY += shift;
+		if (hasCollection) {
+			collectionY += shift;
+		}
 		medalPanelY += shift;
 		scoreY += shift;
 		gameOverY = topPad;
 	}
 
-	var scoreX = (width - scoreW) / 2;
-	var scoreNumX = Math.min(width - padX - 36, scoreX + scoreW - 72);
+	var scoreX = (canvasW - scoreW) / 2;
+	var scoreNumX = Math.min(canvasW - padX - 36, scoreX + scoreW - 72);
 
 	return {
-		gameOver: { x: (width - gameOverW) / 2, y: gameOverY, w: gameOverW, h: gameOverH },
+		gameOver: { x: (canvasW - gameOverW) / 2, y: gameOverY, w: gameOverW, h: gameOverH },
 		score: { x: scoreX, y: scoreY, w: scoreW, h: scoreH },
 		scoreNums: { x: scoreNumX, scoreY: scoreY + 36, bestY: scoreY + 78 },
 		medalPanel: { x: panelX, y: medalPanelY, w: panelW, h: medalPanelH },
-		collection: { y: collectionY, visible: hasCollection },
-		ok: { x: (width - okW) / 2, y: okY, w: okW, h: okH },
-		progress: progress
+		collection: { y: collectionY, visible: hasCollection, h: collectionBadgeH, labelAbove: collectionLabelAbove },
+		ok: { x: (canvasW - okW) / 2, y: okY, w: okW, h: okH },
+		progress: progress,
+		gap: gap,
+		fgTop: fgTop
 	};
 }
 
@@ -758,7 +779,8 @@ if(typeof module !== 'undefined' && module.exports){
 		getMedalProgress: getMedalProgress,
 		loadUnlockedMedals: loadUnlockedMedals,
 		saveUnlockedMedals: saveUnlockedMedals,
-		unlockMedalsForScore: unlockMedalsForScore
+		unlockMedalsForScore: unlockMedalsForScore,
+		computeGameOverLayout: computeGameOverLayout
 	};
 }else{
 	main();
