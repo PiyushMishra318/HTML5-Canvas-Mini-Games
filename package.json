@@ -1,0 +1,22 @@
+{
+  "name": "html5-canvas-games",
+  "version": "2.0.0",
+  "description": "High-DPI HTML5 canvas mini-games: Flappy Bird and Space Shooter",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -l 3000",
+    "test": "node --test test/**/*.test.js"
+  },
+  "keywords": [
+    "canvas",
+    "games",
+    "flappy-bird",
+    "space-shooter",
+    "javascript"
+  ],
+  "author": "Piyush Mishra <piyush_mishra31@outlook.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

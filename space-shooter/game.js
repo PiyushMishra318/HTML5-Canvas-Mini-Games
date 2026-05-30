@@ -1,28 +1,28 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+function setupHiDpiCanvas(canvas, logicalWidth, logicalHeight) {
+	var dpr = Math.min(window.devicePixelRatio || 1, 2);
+	canvas.width = logicalWidth * dpr;
+	canvas.height = logicalHeight * dpr;
+	canvas.style.width = logicalWidth + 'px';
+	canvas.style.height = logicalHeight + 'px';
+	var context = canvas.getContext('2d', { alpha: false, desynchronized: true });
+	context.scale(dpr, dpr);
+	context.imageSmoothingEnabled = true;
+	return context;
+}
 
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="mobile-web-app-capable" content="yes">
-	<title>Space Shooter</title>
-</head>
-<body ontouchstart = "start(event);">
-
-<canvas id="canvas"></canvas>
-<style type="text/css">
-	body{
-
-		margin: 0px;
+function drawStarfield(ctx, w, h, frame) {
+	for (var i = 0; i < 40; i++) {
+		var x = (i * 97 + frame * 0.4) % w;
+		var y = (i * 53 + frame * 0.7) % h;
+		var size = (i % 3) + 1;
+		ctx.fillStyle = 'rgba(255,255,255,' + (0.2 + (i % 5) * 0.12) + ')';
+		ctx.fillRect(x, y, size, size);
 	}
-</style>
-<script src="virtualjoystick.js"></script> 
-<script type="text/javascript">
-	
-	var
+}
+
+var
 	canvas = document.getElementById('canvas'),
-	ctx = canvas.getContext('2d'),
+	ctx,
 	enemy = [];
 	var beam = [];
 	var score = 0;
@@ -39,6 +39,7 @@
 		39: false, // Right Arrow Key
 		38: false, // Top Arrow Key
 		40: false, // Bottom Arrow Key
+		32: false,
 	}
 	playerImg = new Image();
 	enemyImg = new Image();
@@ -48,12 +49,12 @@
 	shootbtnImg = new Image();
 	startImg = new Image();
 	var joystick	= new VirtualJoystick({
-		mouseSupport	: true,
-		stationaryBase: true,
-                      baseX: 100,
-                      baseY: height - 150,
+		
+		// stationaryBase: true,
+  //                     baseX: 70,
+  //                     baseY: height - 70,
 		limitStickTravel: true,
-		stickRadius	: 50
+		stickRadius	: 20
 	});
 	joystick.addEventListener('touchStartValidation', function(event){
 		var touch	= event.changedTouches[0];
@@ -83,30 +84,7 @@
 
 
 
-	document.addEventListener("keydown",function(e){
-		if(event.keyCode in map){
-			map[event.keyCode] = true;
-		
-			if(map[37]){
-			   player.x -= 5 + psp;
-			   
-			}else if(map[39]){
-			   player.x += 5 + psp;
-			   
-			}else if(map[38]){
-			   player.y -= 5 + psp;
-			   
-			}else if(map[40]){
-			   player.y += 5 + psp;
-			}
-		}	
-	})
-
-	window.addEventListener('keyup', function(event){
-		if(event.keyCode in map){
-			map[event.keyCode] = false;
-		}
-	});
+	
 
 	player = {
 		x : (width - playerImg.width)/4,
@@ -141,20 +119,50 @@
 		y : player.x + playerImg.width/2,
 	}
 
+document.addEventListener("keydown",function(e){
+		if(event.keyCode in map){
+			map[event.keyCode] = true;
+		
+			if(map[37]){
+			   player.x -= 5 + psp;
+			   
+			}else if(map[39]){
+			   player.x += 5 + psp;
+			   
+			}else if(map[38]){
+			   player.y -= 5 + psp;
+			   
+			}else if(map[40]){
+			   player.y += 5 + psp;
+			}
+		}	
+	})
 
 	document.addEventListener("keydown",function(e){
-		if(e.keyCode == 32){
-			beam.push({
-				x : player.y,
-				y : player.x + playerImg.width/2,
-			})
-			bsp += .001
+		if(event.keyCode in map){
+			map[event.keyCode] = true;
+			if(map[32]){
+				beam.push({
+					x : player.y,
+					y : player.x + playerImg.width/2,
+				})
+				bsp += .001
+			}
 		}
 	})
+
+	document.addEventListener('keyup', function(event){
+		if(event.keyCode in map){
+			map[event.keyCode] = false;
+		}
+	});
 
 	function start(event){
 		flag = 1; 
 	}
+	document.body.addEventListener('touchstart', function(e) {
+		if (flag === 0) start(e);
+	}, { passive: true });
 	document.addEventListener("touchstart",function(e){
 		mx = e.touches[0].clientX;
 		my = e.touches[0].clientY;
@@ -183,23 +191,23 @@
 		}
 	})
 
-	function draw(){
+	var frame = 0;
 
-		canvas.width = width;
-	
-		canvas.height = height;
+	function draw(){
+		frame++;
 
 		if(width > 500){
 			width = 800;
 			height = 600;
-			ctx.drawImage(bgImg, 0, 0);
+			ctx.drawImage(bgImg, 0, 0, width, height);
+			drawStarfield(ctx, width, height, frame);
 
 				if (flag === 0) {
 					ctx.fillStyle = "white"
 					ctx.font = '50px Arial';
-					ctx.fillText("Space Shooter(pew-pew-pew)", 40, 200);
+					ctx.fillText("Space Shooter", 40, 200);
 					ctx.font = '30px Arial';
-					ctx.fillText("Press Enter to start (Atatata read the instructions first.)", 40, 250);
+					ctx.fillText("Press Enter to start", 40, 250);
 					ctx.font = '20px Arial';
 					ctx.fillText("Instructions : ", 150,330);
 					ctx.font = '20px Arial';
@@ -209,7 +217,6 @@
 					ctx.fillText("3. Try to dodge the enemy ships or health will decrease(by 20).", 150, 420)
 					ctx.fillText("4. If any ship passes by you your health will decrease(by 5).", 150, 440)
 					ctx.font = '10px Arial'
-					ctx.fillText("Develepor's note : The game is repetative and endless (unless you die that is *cough* LOSER) Try to score as much as you can.",150, 480)
 					
 					document.addEventListener("keydown",function(e){
 						if(e.keyCode == 13){
@@ -222,11 +229,14 @@
 
 
 				for(var j = 1; j < beam.length; j++){
-
-					ctx.drawImage(beamImg, beam[j].y, beam[j].x)
+					ctx.save();
+					ctx.shadowColor = '#7df9ff';
+					ctx.shadowBlur = 8;
+					ctx.drawImage(beamImg, beam[j].y, beam[j].x);
+					ctx.restore();
 					beam[j].x -= bsp
 
-					if(beam[j].x < 0){
+					if(beam[j].x < 20){
 						beam.splice(j,1)
 					}
 
@@ -242,7 +252,9 @@
 						beamImg.height + beam[a].x > enemy[b].y) {
 							enemy.splice(b,1)
 							beam.splice(a,1)
-							score += 5
+							score += 1
+							esp += .05
+							psp += .05
 						}
 					// var dx = beam[a].y - enemy[b].x;
 					// var dy = beam[a].x - enemy[b].y;
@@ -270,7 +282,6 @@
 							y : 10,
 							radius : 40,
 						})
-						esp += .0001
 					}
 
 				
@@ -307,10 +318,10 @@
 					player.x = 0
 				}else if(player.y < 0){
 					player.y = 0
-				}else if(player.y > 490){
-					player.y = 490
-				}else if(player.x > 930){
-					player.x = 930
+				}else if(player.y > height - playerImg.height){
+					player.y = height - playerImg.height
+				}else if(player.x > width - playerImg.width ){
+					player.x = width - playerImg.width
 				}
 
 				ctx.fillStyle = "white";
@@ -324,25 +335,23 @@
 
 			
 			
-			ctx.drawImage(bgImg, 0, 0);
+			ctx.drawImage(bgImg, 0, 0, width, height);
+			drawStarfield(ctx, width, height, frame);
 			if (flag === 0) {
 					ctx.fillStyle = "white"
 					ctx.font = '25px Arial';
-					ctx.fillText("Space Shooter(pew-pew-pew)", 0, 100);
+					ctx.fillText("Space Shooter", 0, 100);
 					ctx.font = '20px Arial';
 					ctx.fillText("Tap anywhere to start ", 0, 150);
-					ctx.fillText("(Atatata read the instructions first).", 0, 180);
 					ctx.font = '10px Arial';
 					ctx.fillText("Instructions : ", 0,230);
 					ctx.font = '10px Arial';
-					ctx.fillText("1. Press Arrow Keys on your left hand side to move the ship.", 0, 260)
-					ctx.fillText("2. Press shoot button the right hand side to shoot.", 0, 280)
+					ctx.fillText("1. Use the Joystick on your left hand side to move the ship.", 0, 260)
+					ctx.fillText("2. Press shoot button on the right hand side to shoot.", 0, 280)
 					ctx.fillText("3. Your Health is 100 at the start of the Game(as it should be).", 0, 300)
 					ctx.fillText("3. Try to dodge the enemy ships or your health will decrease(by 20).", 0, 320)
-					ctx.fillText("4. If any ship passes by you, your health will decrease(by 5).", 0, 340)
+					ctx.fillText("4. If any ships passes by you, your health will decrease(by 5).", 0, 340)
 					ctx.font = '10px Arial'
-					ctx.fillText("Develepor's note : The game is repetative and endless (unless you die that is *cou", 0, 380)
-					ctx.fillText("gh* LOSER) Try to score as much as you can.",0, 390)
 					ctx.drawImage(startImg, startbtn.x, startbtn.y)
 				}else{
 
@@ -351,8 +360,11 @@
 
 
 				for(var j = 1; j < beam.length; j++){
-
-					ctx.drawImage(beamImg, beam[j].y, beam[j].x)
+					ctx.save();
+					ctx.shadowColor = '#7df9ff';
+					ctx.shadowBlur = 8;
+					ctx.drawImage(beamImg, beam[j].y, beam[j].x);
+					ctx.restore();
 					beam[j].x -= bsp
 
 					if(beam[j].x < 0){
@@ -371,7 +383,9 @@
 						beamImg.height + beam[a].x > enemy[b].y) {
 							enemy.splice(b,1)
 							beam.splice(a,1)
-							score += 5
+							score += 1
+							psp += .05;
+							esp += .05;
 						}
 					// var dx = beam[a].y - enemy[b].x;
 					// var dy = beam[a].x - enemy[b].y;
@@ -399,7 +413,6 @@
 							y : 10,
 							radius : 40,
 						})
-						esp += .0001
 					}
 
 				
@@ -420,10 +433,10 @@
 				
 					if(health <= 0){
 						ctx.fillStyle = "white"
-						ctx.font = "50px Arial";
-						ctx.fillText("GAME OVER!!", 250, 300);
+						ctx.font = "25px Arial";
+						ctx.fillText("GAME OVER!!", width/2 - 25, 300);
 						ctx.font = "10px Arial";
-						ctx.fillText("press ENTER to restart",350,330);
+						ctx.fillText("Tap anywhere to restart", width/2 - 10,330);
 						document.addEventListener("touchstart",function(e){
 							location.reload()
 						})
@@ -456,15 +469,9 @@
 				ctx.font = "30px Arial";
 				ctx.fillText("Score: "+score, 10, 50);
 				ctx.fillText("Health: "+health, width - 160, 50)
-				psp += .001;
 			}
 			window.requestAnimationFrame(draw);
 			}
 		}		
-draw();
-
-
-</script>
-
-</body>
-</html>
+	ctx = setupHiDpiCanvas(canvas, width, height);
+	draw();

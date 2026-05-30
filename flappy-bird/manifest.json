@@ -1,20 +1,15 @@
 {
   "name": "Flappy Bird",
-  "short_name": "Flappy Bird",
-  "theme_color": "#2196f3",
-  "background_color": "#2196f3",
-  "start_url": "http://192.168.43.179:8080",
+  "short_name": "Flappy",
+  "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "portrait",
-  "description": "Pithy description (132 characters or less, no HTML)",
-  "version": "0.0.0.1",
-  "manifest_version": 2,
+  "background_color": "#70c5cf",
+  "theme_color": "#70c5cf",
   "icons": [
     {
-   "src": "./image/brandimg.png",
-   "sizes": "192x192",
-   "type": "image/png",
-   "density": "4.0"
-  }
- ]
+      "src": "./image/brandimg.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
 }
