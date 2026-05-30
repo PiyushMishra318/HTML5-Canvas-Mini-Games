@@ -395,6 +395,80 @@ function drawUnlockedMedalsRow(ctx, unlockedIds, y) {
 	ctx.restore();
 }
 
+var PAUSE_KEY = 'KeyP';
+
+function togglePause() {
+	if (currentState !== states.Game) {
+		return false;
+	}
+	isPaused = !isPaused;
+	return isPaused;
+}
+
+function getPauseButtonBounds(canvasW) {
+	var size = 36;
+	var pad = 10;
+	return {
+		x: canvasW - size - pad,
+		y: pad,
+		width: size,
+		height: size
+	};
+}
+
+function isPointInRect(px, py, rect) {
+	return px >= rect.x && px <= rect.x + rect.width &&
+		py >= rect.y && py <= rect.y + rect.height;
+}
+
+function drawPauseButton(ctx, bounds, paused) {
+	ctx.save();
+	ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+	ctx.beginPath();
+	ctx.arc(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, bounds.width / 2, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+	ctx.lineWidth = 1.5;
+	ctx.stroke();
+
+	var cx = bounds.x + bounds.width / 2;
+	var cy = bounds.y + bounds.height / 2;
+	var barW = 4;
+	var barH = 14;
+	var gap = 4;
+	ctx.fillStyle = '#ffffff';
+
+	if (paused) {
+		ctx.beginPath();
+		ctx.moveTo(cx - 2, cy - barH / 2);
+		ctx.lineTo(cx - 2, cy + barH / 2);
+		ctx.lineTo(cx + 10, cy);
+		ctx.closePath();
+		ctx.fill();
+	} else {
+		ctx.fillRect(cx - gap / 2 - barW, cy - barH / 2, barW, barH);
+		ctx.fillRect(cx + gap / 2, cy - barH / 2, barW, barH);
+	}
+	ctx.restore();
+}
+
+function drawPauseOverlay(ctx, canvasW, canvasH) {
+	ctx.save();
+	ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+	ctx.fillRect(0, 0, canvasW, canvasH);
+
+	ctx.fillStyle = '#ffffff';
+	ctx.font = 'bold 28px sans-serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText('PAUSED', canvasW / 2, canvasH / 2 - 18);
+
+	ctx.font = '14px sans-serif';
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+	ctx.fillText('Press P or tap pause to resume', canvasW / 2, canvasH / 2 + 18);
+	ctx.restore();
+}
+
 var
 
 canvas,
@@ -420,6 +494,10 @@ _scoreProcessed = false,
 okbtn,
 
 currentState,
+
+isPaused = false,
+
+pauseBtn,
 
 lastTime = 0,
 
@@ -609,11 +687,34 @@ pipes = {
 	}
 };
 
+function getEventCoords(evt, canvasEl) {
+	var mx = evt.offsetX;
+	var my = evt.offsetY;
+	if (mx == null || my == null) {
+		var rect = canvasEl.getBoundingClientRect();
+		mx = evt.touches[0].clientX - rect.left;
+		my = evt.touches[0].clientY - rect.top;
+	}
+	return { x: mx, y: my };
+}
+
 function onpress(evt){
+	var coords = getEventCoords(evt, canvas);
+
+	if (currentState === states.Game && pauseBtn &&
+		isPointInRect(coords.x, coords.y, pauseBtn)) {
+		togglePause();
+		return;
+	}
+
+	if (currentState === states.Game && isPaused) {
+		return;
+	}
 
 	switch(currentState){
 		case states.Splash:
 			currentState = states.Game;
+			isPaused = false;
 			bird.jump();
 			break;
 
@@ -622,22 +723,28 @@ function onpress(evt){
 			break;
 
 		case states.Score:
-			var mx = evt.offsetX, my = evt.offsetY;
-
-			if(mx == null || my == null){
-				mx = evt.touches[0].clientX;
-				my = evt.touches[0].clientY;
-			}
+			var mx = coords.x;
+			var my = coords.y;
 
 			if(okbtn.x < mx && mx < okbtn.x + okbtn.width &&
 				okbtn.y < my && my < okbtn.y + okbtn.height){
 				pipes.reset();
 				currentState = states.Splash;
 				score = 0;
+				isPaused = false;
 				_scoreProcessed = false;
 			}
 			break;
 
+	}
+}
+
+function onKeyDown(evt) {
+	if (evt.code === PAUSE_KEY || evt.key === 'p' || evt.key === 'P') {
+		if (currentState === states.Game) {
+			togglePause();
+			evt.preventDefault();
+		}
 	}
 }
 
@@ -656,10 +763,13 @@ function main(){
 	}
 
 	document.addEventListener(evt, onpress);
+	document.addEventListener('keydown', onKeyDown);
 
 	ctx = setupHiDpiCanvas(canvas, width, height);
+	pauseBtn = getPauseButtonBounds(width);
 
 	currentState = states.Splash;
+	isPaused = false;
 	unlockedMedals = loadUnlockedMedals();
 	
 	document.body.appendChild(canvas);
@@ -699,6 +809,9 @@ function run(){
 }
 
 function update(dt){
+	if (currentState === states.Game && isPaused) {
+		return;
+	}
 
 	frames++;
 
@@ -761,6 +874,12 @@ function render(){
 	}else{
 		s_numberB.draw(ctx, width/2, 20, score)
 		drawMedalHud(ctx, score);
+		if (currentState === states.Game) {
+			drawPauseButton(ctx, pauseBtn, isPaused);
+			if (isPaused) {
+				drawPauseOverlay(ctx, width, height);
+			}
+		}
 	}
 
 
@@ -780,7 +899,11 @@ if(typeof module !== 'undefined' && module.exports){
 		loadUnlockedMedals: loadUnlockedMedals,
 		saveUnlockedMedals: saveUnlockedMedals,
 		unlockMedalsForScore: unlockMedalsForScore,
-		computeGameOverLayout: computeGameOverLayout
+		computeGameOverLayout: computeGameOverLayout,
+		PAUSE_KEY: PAUSE_KEY,
+		togglePause: togglePause,
+		getPauseButtonBounds: getPauseButtonBounds,
+		isPointInRect: isPointInRect
 	};
 }else{
 	main();

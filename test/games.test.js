@@ -169,3 +169,65 @@ test('flappy bird game over layout avoids panel overlap', () => {
     assertLayoutNoOverlap(maxMedals);
   }
 });
+
+test('flappy bird pause helpers expose bounds and hit testing', () => {
+  const helpers = require(path.join(root, 'flappy-bird/game.js'));
+
+  assert.equal(helpers.PAUSE_KEY, 'KeyP');
+  const bounds = helpers.getPauseButtonBounds(320);
+  assert.ok(bounds.width > 0);
+  assert.ok(bounds.x + bounds.width <= 320);
+
+  assert.equal(helpers.isPointInRect(bounds.x + 1, bounds.y + 1, bounds), true);
+  assert.equal(helpers.isPointInRect(0, 0, bounds), false);
+});
+
+test('space shooter power-up spawn logic respects score thresholds', () => {
+  const helpers = require(path.join(root, 'space-shooter/game.js'));
+
+  assert.equal(helpers.POWERUP_SCORE_INTERVAL, 10);
+  assert.equal(helpers.getNextPowerUpThreshold(0), 10);
+  assert.equal(helpers.getNextPowerUpThreshold(10), 20);
+
+  const tooEarly = helpers.shouldDropPowerUp(9, 0);
+  assert.equal(tooEarly.drop, false);
+  assert.equal(tooEarly.threshold, 10);
+
+  const firstDrop = helpers.shouldDropPowerUp(10, 0);
+  assert.equal(firstDrop.drop, true);
+  assert.equal(firstDrop.threshold, 10);
+  assert.equal(firstDrop.type.id, 'speed');
+
+  const secondDrop = helpers.shouldDropPowerUp(20, 10);
+  assert.equal(secondDrop.drop, true);
+  assert.equal(secondDrop.type.id, 'rapid');
+
+  const thirdDrop = helpers.shouldDropPowerUp(30, 20);
+  assert.equal(thirdDrop.type.id, 'shield');
+
+  const fourthDrop = helpers.shouldDropPowerUp(40, 30);
+  assert.equal(fourthDrop.type.id, 'spread');
+
+  const cycleAgain = helpers.shouldDropPowerUp(50, 40);
+  assert.equal(cycleAgain.type.id, 'speed');
+});
+
+test('space shooter buff helpers adjust movement and pause bounds', () => {
+  const helpers = require(path.join(root, 'space-shooter/game.js'));
+
+  const base = helpers.getEffectiveMoveSettings({});
+  assert.ok(base.maxSpeed > 0);
+  assert.ok(base.fireCooldown > 0);
+
+  const buffed = helpers.getEffectiveMoveSettings({
+    speed: { remaining: 2 },
+    rapid: { remaining: 2 }
+  });
+  assert.ok(buffed.maxSpeed > base.maxSpeed);
+  assert.ok(buffed.fireCooldown < base.fireCooldown);
+
+  const pauseBtn = helpers.getPauseButtonBounds(800, false);
+  assert.ok(helpers.isPointInRect(pauseBtn.x + 2, pauseBtn.y + 2, pauseBtn));
+  assert.equal(helpers.circleCircleCollision(0, 0, 10, 15, 0, 10), true);
+  assert.equal(helpers.circleCircleCollision(0, 0, 5, 20, 0, 5), false);
+});
