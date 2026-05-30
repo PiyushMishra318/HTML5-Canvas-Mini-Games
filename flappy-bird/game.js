@@ -228,12 +228,64 @@ function drawMedalHud(ctx, gameScore) {
 	ctx.restore();
 }
 
-function drawMedalGameOver(ctx, gameScore) {
+function computeGameOverLayout(gameScore, unlockedIds) {
 	var progress = getMedalProgress(gameScore);
-	var panelX = width / 2 - 110;
-	var panelY = height - 228;
-	var panelW = 220;
-	var panelH = progress.complete ? 58 : 82;
+	var padX = Math.max(10, Math.round(width * 0.04));
+	var panelW = Math.min(260, width - padX * 2);
+	var panelX = (width - panelW) / 2;
+	var gap = Math.max(6, Math.round(height * 0.014));
+	var bottomPad = Math.max(10, Math.round(height * 0.022));
+	var topPad = Math.max(12, Math.round(height * 0.03));
+
+	var okH = s_buttons.Ok.height;
+	var okW = s_buttons.Ok.width;
+	var scoreH = s_score.height;
+	var scoreW = s_score.width;
+	var gameOverH = s_text.GameOver.height;
+	var gameOverW = s_text.GameOver.width;
+
+	var medalPanelH = progress.complete ? 50 : 76;
+	var hasCollection = unlockedIds && unlockedIds.length > 0;
+	var collectionBlockH = hasCollection ? 30 : 0;
+
+	var fgTop = height - s_fg.height;
+	var okY = fgTop - bottomPad - okH;
+	var collectionY = okY - gap - (hasCollection ? 16 : 0);
+	var medalPanelY = okY - gap - collectionBlockH - gap - medalPanelH;
+	var scoreY = medalPanelY - gap - scoreH;
+	var gameOverY = scoreY - gap - gameOverH;
+
+	if (gameOverY < topPad) {
+		var shift = topPad - gameOverY;
+		okY += shift;
+		collectionY += shift;
+		medalPanelY += shift;
+		scoreY += shift;
+		gameOverY = topPad;
+	}
+
+	var scoreX = (width - scoreW) / 2;
+	var scoreNumX = Math.min(width - padX - 36, scoreX + scoreW - 72);
+
+	return {
+		gameOver: { x: (width - gameOverW) / 2, y: gameOverY, w: gameOverW, h: gameOverH },
+		score: { x: scoreX, y: scoreY, w: scoreW, h: scoreH },
+		scoreNums: { x: scoreNumX, scoreY: scoreY + 36, bestY: scoreY + 78 },
+		medalPanel: { x: panelX, y: medalPanelY, w: panelW, h: medalPanelH },
+		collection: { y: collectionY, visible: hasCollection },
+		ok: { x: (width - okW) / 2, y: okY, w: okW, h: okH },
+		progress: progress
+	};
+}
+
+function drawMedalGameOver(ctx, layout) {
+	var progress = layout.progress;
+	var panelX = layout.medalPanel.x;
+	var panelY = layout.medalPanel.y;
+	var panelW = layout.medalPanel.w;
+	var panelH = layout.medalPanel.h;
+	var cx = panelX + panelW / 2;
+	var innerPad = Math.max(10, Math.round(panelW * 0.06));
 
 	ctx.save();
 	ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -243,39 +295,48 @@ function drawMedalGameOver(ctx, gameScore) {
 	ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
 
 	if (progress.earned) {
-		drawMedalBadge(ctx, panelX + 28, panelY + panelH / 2, 18, progress.earned);
-		ctx.fillStyle = '#ffffff';
+		var badgeR = Math.min(16, Math.round(panelH * 0.2));
+		var badgeY = panelY + (progress.complete ? panelH / 2 : innerPad + badgeR + 2);
+		var title = progress.earned.name + ' Medal!';
 		ctx.font = 'bold 13px sans-serif';
+		var titleW = ctx.measureText(title).width;
+		var groupW = badgeR * 2 + 8 + titleW;
+		var groupX = cx - groupW / 2;
+
+		drawMedalBadge(ctx, groupX + badgeR, badgeY, badgeR, progress.earned);
+		ctx.fillStyle = '#ffffff';
 		ctx.textAlign = 'left';
 		ctx.textBaseline = 'middle';
-		ctx.fillText(progress.earned.name + ' Medal!', panelX + 54, panelY + 22);
+		ctx.fillText(title, groupX + badgeR * 2 + 8, badgeY);
 	} else {
 		ctx.fillStyle = '#ffffff';
 		ctx.font = '12px sans-serif';
-		ctx.textAlign = 'left';
+		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
-		ctx.fillText('No medal yet', panelX + 14, panelY + 22);
+		ctx.fillText('No medal yet', cx, panelY + (progress.complete ? panelH / 2 : innerPad + 10));
 	}
 
 	if (progress.complete) {
 		ctx.fillStyle = '#ffe066';
 		ctx.font = '11px sans-serif';
 		ctx.textAlign = 'center';
-		ctx.fillText('All medals unlocked!', width / 2, panelY + panelH - 16);
+		ctx.textBaseline = 'middle';
+		ctx.fillText('All medals unlocked!', cx, panelY + panelH - innerPad);
 	} else {
 		var medal = progress.nextMedal;
-		var barX = panelX + 14;
-		var barY = panelY + 44;
-		var barW = panelW - 28;
-		drawMedalProgressBar(ctx, barX, barY, barW, 10, progress.ratio, medal.color);
+		var barH = 10;
+		var barW = panelW - innerPad * 2;
+		var barX = panelX + innerPad;
+		var barY = panelY + panelH - innerPad - barH - 16;
+		drawMedalProgressBar(ctx, barX, barY, barW, barH, progress.ratio, medal.color);
 		ctx.fillStyle = '#ffffff';
 		ctx.font = '11px sans-serif';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'top';
 		ctx.fillText(
 			progress.pointsNeeded + ' point' + (progress.pointsNeeded === 1 ? '' : 's') + ' to ' + medal.name,
-			width / 2,
-			barY + 14
+			cx,
+			barY + barH + 4
 		);
 	}
 
@@ -589,11 +650,11 @@ function main(){
 		ctx.fillStyle = s_bg.color;
 		
 		okbtn = {
-			x : (width - s_buttons.Ok.width)/2,
-			y : height - 200,
+			x : (width - s_buttons.Ok.width) / 2,
+			y : height - s_fg.height - 40,
 			width : s_buttons.Ok.width,
 			height : s_buttons.Ok.height
-		}
+		};
 
 		lastTime = performance.now();
 		run();
@@ -658,15 +719,23 @@ function render(){
 		s_text.GetReady.draw(ctx, width/2 - s_text.GetReady.width/2, height - 380);
 	}
 	if( currentState === states.Score){
-		s_score.draw(ctx, width/2 - s_score.width/2 ,height - 340);
-		s_text.GameOver.draw(ctx, width/2 - s_text.GameOver.width/2, height - 400);
-		s_buttons.Ok.draw(ctx, okbtn.x , okbtn.y);
+		var scoreLayout = computeGameOverLayout(score, unlockedMedals);
 
-		s_numberS.draw(ctx, width - 100, height - 304, score)
-		s_numberS.draw(ctx, width - 100, height - 262, best)
+		okbtn.x = scoreLayout.ok.x;
+		okbtn.y = scoreLayout.ok.y;
+		okbtn.width = scoreLayout.ok.w;
+		okbtn.height = scoreLayout.ok.h;
 
-		drawMedalGameOver(ctx, score);
-		drawUnlockedMedalsRow(ctx, unlockedMedals, height - 168);
+		s_text.GameOver.draw(ctx, scoreLayout.gameOver.x, scoreLayout.gameOver.y);
+		s_score.draw(ctx, scoreLayout.score.x, scoreLayout.score.y);
+		s_numberS.draw(ctx, scoreLayout.scoreNums.x, scoreLayout.scoreNums.scoreY, score);
+		s_numberS.draw(ctx, scoreLayout.scoreNums.x, scoreLayout.scoreNums.bestY, best);
+
+		drawMedalGameOver(ctx, scoreLayout);
+		if (scoreLayout.collection.visible) {
+			drawUnlockedMedalsRow(ctx, unlockedMedals, scoreLayout.collection.y);
+		}
+		s_buttons.Ok.draw(ctx, okbtn.x, okbtn.y);
 
 	}else{
 		s_numberB.draw(ctx, width/2, 20, score)
