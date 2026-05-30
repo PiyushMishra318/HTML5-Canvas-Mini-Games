@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HTML5 Canvas Mini Games</title>
   <style>
-    html, body { min-height: 100%; height: 100%; }
+    html { height: 100%; }
     body {
       font-family: system-ui, sans-serif;
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       background: #0f172a;
@@ -25,8 +26,10 @@
     }
     .header h1 { margin: 0 0 0.35rem; font-size: 1.5rem; }
     .header p { margin: 0; color: #94a3b8; font-size: 0.95rem; }
-    .main {
-      flex: 1;
+    .page-main,
+    .main,
+    main {
+      flex: 1 0 auto;
       max-width: 640px;
       margin: 0 auto;
       width: 100%;
@@ -34,7 +37,10 @@
     }
     ul { padding-left: 1.2rem; line-height: 1.8; }
     a { color: #60a5fa; }
-    .footer {
+    .site-footer,
+    .footer,
+    footer {
+      flex-shrink: 0;
       margin-top: auto;
       text-align: center;
       padding: 1.5rem;
@@ -63,12 +69,12 @@
   
     <a class="header__github" href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a>
   </header>
-  <main class="main">
+  <main class="page-main main">
     <ul>
       <li><a href="flappy-bird/index.html">Flappy Bird</a> — tap/click to fly through pipes</li>
       <li><a href="space-shooter/index.html">Space Shooter</a> — dodge enemies and shoot beams</li>
     </ul>
   </main>
-  <footer class="footer"><p>MIT © 2026 · <a href="https://piyushm.dev">piyushm.dev</a> · <a href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a></p></footer>
+  <footer class="site-footer footer"><p>MIT © 2026 · <a href="https://piyushm.dev">piyushm.dev</a> · <a href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a></p></footer>
 </body>
 </html>
