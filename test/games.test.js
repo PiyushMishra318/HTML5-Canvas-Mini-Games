@@ -182,6 +182,39 @@ test('flappy bird pause helpers expose bounds and hit testing', () => {
   assert.equal(helpers.isPointInRect(0, 0, bounds), false);
 });
 
+test('flappy bird collision helpers use tighter circle hitboxes', () => {
+  const helpers = require(path.join(root, 'flappy-bird/game.js'));
+
+  const visualRadius = 12;
+  const hitRadius = helpers.getBirdCollisionRadius(visualRadius);
+  assert.ok(hitRadius < visualRadius, 'collision radius is smaller than visual');
+  assert.ok(Math.abs(hitRadius - visualRadius * helpers.PHYSICS.COLLISION_RADIUS_FACTOR) < 0.001);
+
+  const rect = { x: 100, y: 50, width: 52, height: 200 };
+  assert.equal(helpers.circleRectCollision(126, 265, hitRadius, rect), false);
+  assert.equal(helpers.circleRectCollision(126, 240, hitRadius, rect), true);
+  assert.equal(helpers.circleRectCollision(126, 240, visualRadius, rect), true);
+
+  const pipe = { x: 100, y: 50, width: 52, height: 200, gap: 100 };
+  assert.equal(helpers.checkBirdPipeCollision(60, 150, hitRadius, pipe), false);
+  assert.equal(helpers.checkBirdPipeCollision(110, 150, hitRadius, pipe), true);
+  assert.equal(
+    helpers.checkBirdPipeCollision(110, 150, hitRadius, pipe, 50, 150),
+    true,
+    'swept collision catches fast horizontal movement',
+  );
+
+  const groundY = helpers.getGroundY(480, 112);
+  assert.equal(groundY, 480 - 112 - helpers.PHYSICS.GROUND_OFFSET);
+
+  const groundHit = helpers.checkGroundCollision(360, hitRadius, groundY, 350);
+  assert.equal(groundHit.hit, true);
+  assert.equal(groundHit.y, groundY);
+
+  const ceilingHit = helpers.checkCeilingCollision(5, hitRadius, 10);
+  assert.equal(ceilingHit.hit, true);
+});
+
 test('space shooter power-up spawn logic respects score thresholds', () => {
   const helpers = require(path.join(root, 'space-shooter/game.js'));
 

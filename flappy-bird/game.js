@@ -24,6 +24,7 @@ var PHYSICS = {
 	JUMP_VELOCITY: -310,
 	TERMINAL_VELOCITY: 520,
 	ROTATION_LERP: 10,
+	ROTATION_LERP_UP: 14,
 	JUMP_BUFFER: 0.12,
 	COYOTE_TIME: 0.07,
 	PIPE_SPEED: 132,
@@ -33,8 +34,107 @@ var PHYSICS = {
 	PIPE_SPAWN_INTERVAL: 1.75,
 	PIPE_SPAWN_INTERVAL_MIN: 1.45,
 	PIPE_MIN_HORIZONTAL_GAP: 168,
-	PIPE_DIFFICULTY_RAMP: 25
+	PIPE_DIFFICULTY_RAMP: 25,
+	COLLISION_RADIUS_FACTOR: 0.78,
+	GROUND_OFFSET: 10,
+	SWEPT_COLLISION_MAX_STEPS: 8,
+	DEATH_ANIM_DURATION: 0.65,
+	INVINCIBLE_DURATION: 1.1,
+	FLAP_ANIM_DURATION: 0.18,
+	PIPE_CAP_BOB: 2.5
 };
+
+function getBirdCollisionRadius(visualRadius) {
+	return visualRadius * PHYSICS.COLLISION_RADIUS_FACTOR;
+}
+
+function circleRectCollision(cx, cy, radius, rect) {
+	var closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.width));
+	var closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.height));
+	var dx = cx - closestX;
+	var dy = cy - closestY;
+	return dx * dx + dy * dy < radius * radius;
+}
+
+function sweptCircleRectCollision(x0, y0, x1, y1, radius, rect) {
+	if (circleRectCollision(x0, y0, radius, rect) || circleRectCollision(x1, y1, radius, rect)) {
+		return true;
+	}
+	var dx = x1 - x0;
+	var dy = y1 - y0;
+	var dist = Math.sqrt(dx * dx + dy * dy);
+	if (dist < 0.001) {
+		return false;
+	}
+	var steps = Math.min(
+		PHYSICS.SWEPT_COLLISION_MAX_STEPS,
+		Math.ceil(dist / Math.max(2, radius * 0.45))
+	);
+	for (var i = 1; i < steps; i++) {
+		var t = i / steps;
+		if (circleRectCollision(x0 + dx * t, y0 + dy * t, radius, rect)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function getPipeRects(pipe) {
+	return {
+		top: { x: pipe.x, y: pipe.y, width: pipe.width, height: pipe.height },
+		bottom: {
+			x: pipe.x,
+			y: pipe.y + pipe.gap + pipe.height,
+			width: pipe.width,
+			height: pipe.height
+		}
+	};
+}
+
+function checkBirdPipeCollision(birdX, birdY, birdRadius, pipe, prevX, prevY) {
+	var rects = getPipeRects(pipe);
+	var px = prevX == null ? birdX : prevX;
+	var py = prevY == null ? birdY : prevY;
+	return sweptCircleRectCollision(px, py, birdX, birdY, birdRadius, rects.top) ||
+		sweptCircleRectCollision(px, py, birdX, birdY, birdRadius, rects.bottom);
+}
+
+function getGroundY(canvasHeight, fgHeight) {
+	return canvasHeight - fgHeight - PHYSICS.GROUND_OFFSET;
+}
+
+function checkGroundCollision(birdY, birdRadius, groundY, prevY) {
+	var detectY = birdY + birdRadius * 0.55;
+	var prevDetectY = prevY + birdRadius * 0.55;
+	if (prevDetectY <= groundY && detectY >= groundY) {
+		return { hit: true, y: groundY };
+	}
+	if (birdY >= groundY) {
+		return { hit: true, y: groundY };
+	}
+	return { hit: false, y: birdY };
+}
+
+function checkCeilingCollision(birdY, birdRadius, prevY) {
+	var top = birdY - birdRadius;
+	var prevTop = prevY - birdRadius;
+	if (prevTop >= 0 && top <= 0) {
+		return { hit: true, y: birdRadius };
+	}
+	if (birdY <= 0) {
+		return { hit: true, y: 0 };
+	}
+	return { hit: false, y: birdY };
+}
+
+function triggerDeath() {
+	if (currentState !== states.Game || deathAnim.timer > 0) {
+		return;
+	}
+	currentState = states.Dying;
+	deathAnim.timer = deathAnim.duration;
+	deathAnim.tumbleSpeed = bird.velocity > 0 ? 8 : 5;
+}
 
 function getPipeDifficulty(passedPipes) {
 	var t = Math.min(1, passedPipes / PHYSICS.PIPE_DIFFICULTY_RAMP);
@@ -502,7 +602,13 @@ pauseBtn,
 lastTime = 0,
 
 states = {
-	Splash : 0,Game : 1,Score : 2
+	Splash : 0,Game : 1,Score : 2,Dying : 3
+},
+
+deathAnim = {
+	timer : 0,
+	duration : PHYSICS.DEATH_ANIM_DURATION,
+	tumbleSpeed : 0
 },
 
 bird = {
@@ -516,6 +622,11 @@ bird = {
 	rotation : 0,
 	_jumpBuffer : 0,
 	_coyoteTimer : 0,
+	_flapTimer : 0,
+	_invincibleTimer : 0,
+	_prevX : 60,
+	_prevY : 0,
+	_deathAlpha : 1,
 
 
 	jump : function(){
@@ -527,21 +638,52 @@ bird = {
 			this.velocity = PHYSICS.JUMP_VELOCITY;
 			this._jumpBuffer = 0;
 			this._coyoteTimer = 0;
+			this._flapTimer = PHYSICS.FLAP_ANIM_DURATION;
+			this.frame = 1;
 		}
 	},
 
 	update : function(dt){
 
+		this._prevX = this.x;
+		this._prevY = this.y;
+
 		var n = currentState === states.Splash ? 10 : 5;
-		this.frame += frames%n === 0 ? 1 : 0;
-		this.frame %= this.animation.length;
+		if (this._flapTimer > 0) {
+			this._flapTimer -= dt;
+			this.frame = this._flapTimer > PHYSICS.FLAP_ANIM_DURATION * 0.45 ? 1 : 2;
+		} else {
+			this.frame += frames % n === 0 ? 1 : 0;
+			this.frame %= this.animation.length;
+		}
+
+		if (currentState === states.Dying) {
+			deathAnim.timer -= dt;
+			this.velocity += PHYSICS.GRAVITY * 0.85 * dt;
+			this.velocity = Math.min(this.velocity, PHYSICS.TERMINAL_VELOCITY);
+			this.y += this.velocity * dt;
+			this.rotation += deathAnim.tumbleSpeed * dt;
+			this._deathAlpha = Math.max(0, deathAnim.timer / deathAnim.duration);
+			if (deathAnim.timer <= 0) {
+				currentState = states.Score;
+				this._deathAlpha = 1;
+				this.velocity = 0;
+			}
+			return;
+		}
 
 		if( currentState === states.Splash){
 			this.y = height - 280 + 5 * Math.cos(frames/10);
 			this.rotation = 0;
 			this.velocity = 0;
 			this._coyoteTimer = PHYSICS.COYOTE_TIME;
+			this._invincibleTimer = 0;
+			this._deathAlpha = 1;
 		}else{
+			if (this._invincibleTimer > 0) {
+				this._invincibleTimer -= dt;
+			}
+
 			if(this._jumpBuffer > 0){
 				this._tryJump();
 				this._jumpBuffer -= dt;
@@ -553,39 +695,45 @@ bird = {
 			this.velocity = Math.min(this.velocity, PHYSICS.TERMINAL_VELOCITY);
 			this.y += this.velocity * dt;
 
-			var groundY = height - s_fg.height - 10;
-			if(this.y >= groundY){
-				this.y = groundY;
-
-				if(currentState === states.Game){
-					currentState = states.Score;
+			var collisionRadius = getBirdCollisionRadius(this.radius);
+			var groundY = getGroundY(height, s_fg.height);
+			var groundHit = checkGroundCollision(this.y, collisionRadius, groundY, this._prevY);
+			if (groundHit.hit) {
+				this.y = groundHit.y;
+				if (currentState === states.Game && this._invincibleTimer <= 0) {
+					triggerDeath();
 				}
 				this.velocity = 0;
 				this._coyoteTimer = 0;
-			}else if(this.y <= 0){
-				this.y = 0;
-				if(currentState === states.Game){
-					currentState = states.Score;
+			} else {
+				var ceilingHit = checkCeilingCollision(this.y, collisionRadius, this._prevY);
+				if (ceilingHit.hit) {
+					this.y = ceilingHit.y;
+					if (currentState === states.Game && this._invincibleTimer <= 0) {
+						triggerDeath();
+					}
+					this.velocity = 0;
+					this._coyoteTimer = 0;
+				} else {
+					this._coyoteTimer = PHYSICS.COYOTE_TIME;
 				}
-				this.velocity = 0;
-				this._coyoteTimer = 0;
-			}else{
-				this._coyoteTimer = PHYSICS.COYOTE_TIME;
 			}
 
-			var targetRotation = Math.max(-0.35, Math.min(Math.PI / 2, this.velocity * 0.0028));
-			var rotBlend = Math.min(1, PHYSICS.ROTATION_LERP * dt);
+			var targetRotation = Math.max(-0.45, Math.min(Math.PI / 2, this.velocity * 0.0032));
+			var rotLerp = this.velocity < 0 ? PHYSICS.ROTATION_LERP_UP : PHYSICS.ROTATION_LERP;
+			var rotBlend = Math.min(1, rotLerp * dt);
 			this.rotation += (targetRotation - this.rotation) * rotBlend;
-
-			if(this.velocity < -40){
-				this.frame = this.animation.indexOf(1) >= 0 ? 1 : this.frame;
-			}
 		}
 	},
 
 	draw : function(ctx){
-		
+		var alpha = this._deathAlpha;
+		if (currentState === states.Game && this._invincibleTimer > 0) {
+			alpha *= 0.45 + 0.55 * Math.abs(Math.sin(frames * 0.35));
+		}
+
 		ctx.save();
+		ctx.globalAlpha = alpha;
 		ctx.translate(this.x, this.y);
 		ctx.rotate(this.rotation);
 
@@ -642,29 +790,10 @@ pipes = {
 				score++;
 			}
 
-			if(currentState === states.Game){
-				var cx = Math.min(Math.max(bird.x, p.x), p.x + p.width);
-				var cy1 = Math.min(Math.max(bird.y, p.y), p.y + p.height);
-				var cy2 = Math.min(
-					Math.max(bird.y, p.y + p.gap + p.height),
-					p.y + p.gap + 2 * p.height
-				);
-
-				var dx = bird.x - cx;
-				var dy1 = bird.y - cy1;
-				var dy2 = bird.y - cy2;
-
-				var d1 = dx * dx + dy1 * dy1;
-				var d2 = dx * dx + dy2 * dy2;
-
-				var r = bird.radius * bird.radius;
-
-				if(r > d1 || r > d2){
-					currentState = states.Score;
-				}
-
-				if(bird.y > height){
-					currentState = states.Score;
+			if(currentState === states.Game && bird._invincibleTimer <= 0){
+				var hitRadius = getBirdCollisionRadius(bird.radius);
+				if (checkBirdPipeCollision(bird.x, bird.y, hitRadius, p, bird._prevX, bird._prevY)) {
+					triggerDeath();
 				}
 			}
 
@@ -681,8 +810,9 @@ pipes = {
 	draw : function(ctx){
 		for (var i = 0, len = this._pipes.length; i < len; i++){
 			var p = this._pipes[i];
-			s_pipeSouth.draw(ctx, p.x, p.y);
-			s_pipeNorth.draw(ctx, p.x, p.y + p.gap + p.height);
+			var capBob = Math.sin(frames * 0.08 + p.x * 0.02) * PHYSICS.PIPE_CAP_BOB;
+			s_pipeSouth.draw(ctx, p.x, p.y + capBob);
+			s_pipeNorth.draw(ctx, p.x, p.y + p.gap + p.height - capBob * 0.6);
 		}
 	}
 };
@@ -715,6 +845,9 @@ function onpress(evt){
 		case states.Splash:
 			currentState = states.Game;
 			isPaused = false;
+			deathAnim.timer = 0;
+			bird._invincibleTimer = PHYSICS.INVINCIBLE_DURATION;
+			bird._deathAlpha = 1;
 			bird.jump();
 			break;
 
@@ -733,6 +866,9 @@ function onpress(evt){
 				score = 0;
 				isPaused = false;
 				_scoreProcessed = false;
+				deathAnim.timer = 0;
+				bird._deathAlpha = 1;
+				bird.rotation = 0;
 			}
 			break;
 
@@ -828,7 +964,7 @@ function update(dt){
 			}
 		}
 	}
-	if (currentState === states.Game)
+	if (currentState === states.Game || currentState === states.Dying)
 		pipes.update(dt);	
 
 	bird.update(dt);
@@ -903,7 +1039,15 @@ if(typeof module !== 'undefined' && module.exports){
 		PAUSE_KEY: PAUSE_KEY,
 		togglePause: togglePause,
 		getPauseButtonBounds: getPauseButtonBounds,
-		isPointInRect: isPointInRect
+		isPointInRect: isPointInRect,
+		getBirdCollisionRadius: getBirdCollisionRadius,
+		circleRectCollision: circleRectCollision,
+		sweptCircleRectCollision: sweptCircleRectCollision,
+		getPipeRects: getPipeRects,
+		checkBirdPipeCollision: checkBirdPipeCollision,
+		getGroundY: getGroundY,
+		checkGroundCollision: checkGroundCollision,
+		checkCeilingCollision: checkCeilingCollision
 	};
 }else{
 	main();
