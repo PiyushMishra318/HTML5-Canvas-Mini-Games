@@ -28,6 +28,26 @@ var MOVE = {
 	FIRE_COOLDOWN: 0.14
 };
 
+var HUD = {
+	MAX_HEALTH: 100,
+	SEGMENTS: 5,
+	FONT: 'Orbitron, Arial, sans-serif',
+	COLORS: {
+		panel: 'rgba(8, 12, 28, 0.72)',
+		panelBorder: 'rgba(125, 249, 255, 0.35)',
+		label: 'rgba(180, 220, 255, 0.85)',
+		score: '#ffffff',
+		scoreGlow: '#7df9ff',
+		healthHigh: '#4ade80',
+		healthMid: '#fbbf24',
+		healthLow: '#f87171',
+		healthEmpty: 'rgba(255, 255, 255, 0.12)',
+		overlay: 'rgba(4, 8, 20, 0.55)',
+		title: '#ffffff',
+		accent: '#7df9ff'
+	}
+};
+
 var canvas = document.getElementById('canvas');
 var ctx;
 var width = window.innerWidth;
@@ -281,56 +301,233 @@ function drawParticles() {
 	ctx.globalAlpha = 1;
 }
 
+function hudPadding() {
+	return isMobile ? 10 : 16;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+	var radius = Math.min(r, w / 2, h / 2);
+	ctx.beginPath();
+	ctx.moveTo(x + radius, y);
+	ctx.lineTo(x + w - radius, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+	ctx.lineTo(x + w, y + h - radius);
+	ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+	ctx.lineTo(x + radius, y + h);
+	ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+	ctx.lineTo(x, y + radius);
+	ctx.quadraticCurveTo(x, y, x + radius, y);
+	ctx.closePath();
+}
+
+function drawGlassPanel(x, y, w, h, radius) {
+	ctx.save();
+	roundRectPath(ctx, x, y, w, h, radius);
+	ctx.fillStyle = HUD.COLORS.panel;
+	ctx.fill();
+	ctx.strokeStyle = HUD.COLORS.panelBorder;
+	ctx.lineWidth = isMobile ? 1 : 1.5;
+	ctx.stroke();
+	ctx.restore();
+}
+
+function drawCenteredText(text, centerX, y, font, fillStyle, shadow) {
+	ctx.save();
+	ctx.font = font;
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	if (shadow) {
+		ctx.shadowColor = shadow.color;
+		ctx.shadowBlur = shadow.blur;
+	}
+	ctx.fillStyle = fillStyle;
+	ctx.fillText(text, centerX, y);
+	ctx.restore();
+}
+
+function healthSegmentColor(ratio) {
+	if (ratio > 0.6) return HUD.COLORS.healthHigh;
+	if (ratio > 0.3) return HUD.COLORS.healthMid;
+	return HUD.COLORS.healthLow;
+}
+
+function drawScoreHud() {
+	var pad = hudPadding();
+	var panelW = isMobile ? 118 : 156;
+	var panelH = isMobile ? 52 : 64;
+	var x = pad;
+	var y = pad;
+
+	drawGlassPanel(x, y, panelW, panelH, isMobile ? 10 : 12);
+
+	ctx.save();
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'top';
+	ctx.font = (isMobile ? '9px' : '11px') + ' ' + HUD.FONT;
+	ctx.fillStyle = HUD.COLORS.label;
+	ctx.fillText('SCORE', x + (isMobile ? 10 : 14), y + (isMobile ? 8 : 10));
+
+	ctx.font = '700 ' + (isMobile ? '22px' : '28px') + ' ' + HUD.FONT;
+	ctx.shadowColor = HUD.COLORS.scoreGlow;
+	ctx.shadowBlur = isMobile ? 6 : 10;
+	ctx.fillStyle = HUD.COLORS.score;
+	ctx.fillText(String(score), x + (isMobile ? 10 : 14), y + (isMobile ? 22 : 28));
+	ctx.restore();
+}
+
+function drawHealthHud() {
+	var pad = hudPadding();
+	var panelW = isMobile ? 148 : 196;
+	var panelH = isMobile ? 52 : 64;
+	var x = width - panelW - pad;
+	var y = pad;
+	var innerPad = isMobile ? 10 : 14;
+	var barH = isMobile ? 10 : 12;
+	var barY = y + (isMobile ? 30 : 36);
+	var barW = panelW - innerPad * 2;
+	var gap = isMobile ? 3 : 4;
+	var segW = (barW - gap * (HUD.SEGMENTS - 1)) / HUD.SEGMENTS;
+	var hpPerSeg = HUD.MAX_HEALTH / HUD.SEGMENTS;
+
+	drawGlassPanel(x, y, panelW, panelH, isMobile ? 10 : 12);
+
+	ctx.save();
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'top';
+	ctx.font = (isMobile ? '9px' : '11px') + ' ' + HUD.FONT;
+	ctx.fillStyle = HUD.COLORS.label;
+	ctx.fillText('SHIELDS', x + innerPad, y + (isMobile ? 8 : 10));
+
+	ctx.font = '500 ' + (isMobile ? '11px' : '13px') + ' ' + HUD.FONT;
+	ctx.textAlign = 'right';
+	ctx.fillStyle = healthSegmentColor(health / HUD.MAX_HEALTH);
+	ctx.fillText(Math.max(0, health) + '%', x + panelW - innerPad, y + (isMobile ? 8 : 10));
+	ctx.textAlign = 'left';
+
+	for (var s = 0; s < HUD.SEGMENTS; s++) {
+		var segX = x + innerPad + s * (segW + gap);
+		var segFill = Math.max(0, Math.min(1, (health - s * hpPerSeg) / hpPerSeg));
+		roundRectPath(ctx, segX, barY, segW, barH, 3);
+		ctx.fillStyle = HUD.COLORS.healthEmpty;
+		ctx.fill();
+		if (segFill > 0) {
+			roundRectPath(ctx, segX, barY, segW * segFill, barH, 3);
+			ctx.fillStyle = healthSegmentColor((health - s * hpPerSeg) / hpPerSeg);
+			if (health <= 25 && frame % 30 < 15) {
+				ctx.globalAlpha = 0.75 + 0.25 * segFill;
+			}
+			ctx.fill();
+			ctx.globalAlpha = 1;
+		}
+	}
+	ctx.restore();
+}
+
 function drawHud() {
-	ctx.fillStyle = 'white';
-	ctx.font = (isMobile ? '24px' : '30px') + ' Arial';
-	ctx.fillText('Score: ' + score, 10, 50);
-	ctx.fillText('Health: ' + health, width - (isMobile ? 130 : 160), 50);
+	drawScoreHud();
+	drawHealthHud();
+}
+
+function drawWrappedLines(lines, centerX, startY, lineHeight, font, fillStyle) {
+	ctx.save();
+	ctx.font = font;
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'top';
+	ctx.fillStyle = fillStyle;
+	for (var i = 0; i < lines.length; i++) {
+		ctx.fillText(lines[i], centerX, startY + i * lineHeight);
+	}
+	ctx.restore();
 }
 
 function drawTitleScreen() {
-	ctx.fillStyle = 'white';
+	var pad = hudPadding();
+	var titleSize = isMobile ? '700 26px' : '900 52px';
+	var subtitleSize = isMobile ? '500 14px' : '500 22px';
+	var bodySize = isMobile ? '500 11px' : '500 15px';
+	var panelW = Math.min(width - pad * 2, isMobile ? width - 24 : 520);
+	var panelX = (width - panelW) / 2;
+	var titleY = isMobile ? height * 0.14 : height * 0.18;
+
+	drawCenteredText('SPACE SHOOTER', width / 2, titleY, titleSize + ' ' + HUD.FONT, HUD.COLORS.title, {
+		color: HUD.COLORS.accent,
+		blur: isMobile ? 8 : 16
+	});
+	drawCenteredText(
+		isMobile ? 'Tap anywhere to start' : 'Press Enter to start',
+		width / 2,
+		titleY + (isMobile ? 34 : 56),
+		subtitleSize + ' ' + HUD.FONT,
+		HUD.COLORS.accent,
+		null
+	);
+
+	var instructLines = isMobile
+		? [
+			'Left joystick — move',
+			'Right button — shoot',
+			'Collisions −20 · Escapes −5',
+			'Shields start at 100%'
+		]
+		: [
+			'Arrow keys — move',
+			'Spacebar — shoot',
+			'Collisions cost 20 shields · Escapes cost 5',
+			'Shields start at full strength'
+		];
+	var panelH = isMobile ? 118 : 148;
+	var panelY = isMobile ? height * 0.42 : height * 0.48;
+	drawGlassPanel(panelX, panelY, panelW, panelH, isMobile ? 12 : 14);
+	drawCenteredText('HOW TO PLAY', width / 2, panelY + (isMobile ? 14 : 18), bodySize + ' ' + HUD.FONT, HUD.COLORS.label, null);
+	drawWrappedLines(
+		instructLines,
+		width / 2,
+		panelY + (isMobile ? 34 : 42),
+		isMobile ? 18 : 24,
+		bodySize + ' ' + HUD.FONT,
+		HUD.COLORS.title
+	);
+
 	if (isMobile) {
-		ctx.font = '25px Arial';
-		ctx.fillText('Space Shooter', 0, 100);
-		ctx.font = '20px Arial';
-		ctx.fillText('Tap anywhere to start ', 0, 150);
-		ctx.font = '10px Arial';
-		ctx.fillText('Instructions : ', 0, 230);
-		ctx.fillText('1. Use the Joystick on your left hand side to move the ship.', 0, 260);
-		ctx.fillText('2. Press shoot button on the right hand side to shoot.', 0, 280);
-		ctx.fillText('3. Your Health is 100 at the start of the Game(as it should be).', 0, 300);
-		ctx.fillText('3. Try to dodge the enemy ships or your health will decrease(by 20).', 0, 320);
-		ctx.fillText('4. If any ships passes by you, your health will decrease(by 5).', 0, 340);
 		ctx.drawImage(startImg, startbtn.x, startbtn.y);
-	} else {
-		ctx.font = '50px Arial';
-		ctx.fillText('Space Shooter', 40, 200);
-		ctx.font = '30px Arial';
-		ctx.fillText('Press Enter to start', 40, 250);
-		ctx.font = '20px Arial';
-		ctx.fillText('Instructions : ', 150, 330);
-		ctx.fillText('1. Press Arrow Keys to move the ship.', 150, 360);
-		ctx.fillText('2. Press spacebar to shoot.', 150, 380);
-		ctx.fillText('3. You Health is 100 at the start of the Game(as it should be).', 150, 400);
-		ctx.fillText('3. Try to dodge the enemy ships or health will decrease(by 20).', 150, 420);
-		ctx.fillText('4. If any ship passes by you your health will decrease(by 5).', 150, 440);
 	}
 }
 
-function drawGameOver() {
-	ctx.fillStyle = 'white';
-	if (isMobile) {
-		ctx.font = '25px Arial';
-		ctx.fillText('GAME OVER!!', width / 2 - 60, height / 2);
-		ctx.font = '10px Arial';
-		ctx.fillText('Tap anywhere to restart', width / 2 - 55, height / 2 + 30);
-	} else {
-		ctx.font = '50px Arial';
-		ctx.fillText('GAME OVER!!', width / 2 - 180, height / 2);
-		ctx.font = '20px Arial';
-		ctx.fillText('press ENTER to restart', width / 2 - 120, height / 2 + 40);
-	}
+function drawGameOverOverlay() {
+	ctx.save();
+	ctx.fillStyle = HUD.COLORS.overlay;
+	ctx.fillRect(0, 0, width, height);
+
+	var pad = hudPadding();
+	var panelW = Math.min(width - pad * 2, isMobile ? width - 32 : 420);
+	var panelH = isMobile ? 148 : 188;
+	var panelX = (width - panelW) / 2;
+	var panelY = (height - panelH) / 2;
+
+	drawGlassPanel(panelX, panelY, panelW, panelH, isMobile ? 14 : 16);
+
+	var titleSize = isMobile ? '700 24px' : '900 40px';
+	var scoreSize = isMobile ? '700 18px' : '700 24px';
+	var hintSize = isMobile ? '500 11px' : '500 16px';
+	var centerY = panelY + panelH / 2;
+
+	drawCenteredText('GAME OVER', width / 2, centerY - (isMobile ? 28 : 36), titleSize + ' ' + HUD.FONT, HUD.COLORS.healthLow, {
+		color: 'rgba(248, 113, 113, 0.6)',
+		blur: isMobile ? 6 : 12
+	});
+	drawCenteredText('Score ' + score, width / 2, centerY + (isMobile ? 2 : 4), scoreSize + ' ' + HUD.FONT, HUD.COLORS.score, {
+		color: HUD.COLORS.scoreGlow,
+		blur: 8
+	});
+	drawCenteredText(
+		isMobile ? 'Tap anywhere to restart' : 'Press Enter to restart',
+		width / 2,
+		centerY + (isMobile ? 32 : 44),
+		hintSize + ' ' + HUD.FONT,
+		HUD.COLORS.label,
+		null
+	);
+	ctx.restore();
 }
 
 function draw(now) {
@@ -389,14 +586,17 @@ function draw(now) {
 			ctx.drawImage(shootbtnImg, width - shootbtnImg.width, height - shootbtnImg.height);
 		}
 
-		drawHud();
-
-		if (gameOver) {
-			drawGameOver();
-		}
 	}
 
 	ctx.restore();
+
+	if (flag === 1) {
+		drawHud();
+		if (gameOver) {
+			drawGameOverOverlay();
+		}
+	}
+
 	rafId = window.requestAnimationFrame(draw);
 }
 
