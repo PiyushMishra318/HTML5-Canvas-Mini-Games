@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "installCommand": null,
+  "framework": null,
+  "rewrites": [
+    { "source": "/flappy-bird", "destination": "/flappy-bird/index.html" },
+    { "source": "/space-shooter", "destination": "/space-shooter/index.html" }
+  ]
+}
