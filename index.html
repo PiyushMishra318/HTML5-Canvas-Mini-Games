@@ -1,66 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HTML5 Canvas Mini Games</title>
   <style>
-    html { height: 100%; }
-    body {
-      font-family: system-ui, sans-serif;
-      margin: 0;
-      min-height: 100vh;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      background: #0f172a;
-      color: #e2e8f0;
-    }
-    header, .header, .site-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: #0f172a;
-      border-bottom: 1px solid #334155;
-      padding: 1.25rem 2rem;
-    }
-    .header h1 { margin: 0 0 0.35rem; font-size: 1.5rem; }
-    .header p { margin: 0; color: #94a3b8; font-size: 0.95rem; }
-    .page-main,
-    .main,
-    main {
-      flex: 1 0 auto;
-      max-width: 640px;
-      margin: 0 auto;
-      width: 100%;
-      padding: 2rem;
-    }
-    ul { padding-left: 1.2rem; line-height: 1.8; }
-    a { color: #60a5fa; }
-    .site-footer,
-    .footer,
-    footer {
-      flex-shrink: 0;
-      margin-top: auto;
-      text-align: center;
-      padding: 1.5rem;
-      color: #94a3b8;
-      font-size: 0.875rem;
-      border-top: 1px solid #334155;
-    }
-    .footer a { color: #60a5fa; text-decoration: none; }
-    .footer a:hover { text-decoration: underline; }
-    .header__github {
-      display: inline-block;
-      margin-top: 0.75rem;
-      color: #60a5fa;
-      text-decoration: none;
-      font-size: 0.875rem;
-      font-weight: 600;
-    }
-    .header__github:hover { text-decoration: underline; }
-
-  
+:root { --bg:#0a0a12; --surface:#14141f; --border:#2a2a3d; --text:#f0e6ff; --muted:#9d8ec4; --accent:#ff00ff; --radius:14px; }
+html { height:100%; }
+body { margin:0; min-height:100dvh; display:flex; flex-direction:column; background:var(--bg); color:var(--text); }
+header,.header { position:sticky; top:0; z-index:100; border-bottom:1px solid var(--border); }
+.page-main,main { flex:1 0 auto; margin:0 auto; padding:2rem 1.5rem 3rem; width:100%; max-width:900px; }
+.site-footer,footer { flex-shrink:0; margin-top:auto; text-align:center; padding:1.5rem; color:var(--muted); font-size:.875rem; border-top:1px solid var(--border); }
+.footer a,.header__github { color:var(--accent); text-decoration:none; }
+.header__github { display:inline-block; margin-top:.75rem; font-weight:600; font-size:.875rem; }
 /* --- portfolio theme: dark mode + animated bg --- */
 :root,[data-theme="light"]{color-scheme:light;--card:var(--surface,#fff)}
 [data-theme="dark"]{color-scheme:dark}
@@ -77,58 +32,330 @@ body>*:not(.bg-animation){position:relative;z-index:1}
 [data-theme=light]{--bg:#f4f6f8;--text:#0f172a;--card:#fff;--surface:#fff;--border:#e2e8f0;--muted:#64748b}
 [data-theme=dark]{--bg:#0f1419;--text:#e7ecf3;--card:#1a222d;--surface:#1a222d;--border:#2a3441;--muted:#9aa8b8}
 
+body.theme-arcade {
+  --font-display: "Press Start 2P", sans-serif;
+  --font-body: "VT323", sans-serif;
+  --font-mono: "VT323", monospace;
+  --accent: #ff00ff;
+  --accent-hover: #00ffff;
+}
+
 body.theme-arcade .bg-animation{background:radial-gradient(circle at 20% 30%,#ff00ff22,transparent 40%),radial-gradient(circle at 80% 70%,#00ffff22,transparent 40%),#0a0a12}body.theme-arcade .bg-animation::before{content:"";inset:0;position:absolute;background-image:linear-gradient(90deg,transparent 49%,#ff00ff33 50%,transparent 51%),linear-gradient(0deg,transparent 49%,#00ffff33 50%,transparent 51%);background-size:60px 60px;animation:ag2 4s infinite}@keyframes ag2{50%{opacity:.6}}[data-theme=light] body.theme-arcade .bg-animation{background:#f0f4ff}
+/* --- portfolio design layer --- */
+/* --- portfolio design layer --- */
+
+body {
+  font-family: var(--font-body, "Source Sans 3", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.badge,
+.eyebrow {
+  font-family: var(--font-display, var(--font-body), system-ui, sans-serif);
+}
+
+code,
+pre,
+textarea,
+.font-mono {
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+}
+
+.header {
+  padding: clamp(2rem, 5vw, 3.5rem) 1.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.header.landing-hero {
+  padding-bottom: clamp(2.5rem, 6vw, 4rem);
+}
+
+.header__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.header__brand {
+  font-family: var(--font-display, inherit);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.header__brand:hover {
+  color: var(--accent);
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.header h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 5.5vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  max-width: 18ch;
+}
+
+.header p:not(.eyebrow) {
+  margin: 0;
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  color: var(--muted);
+  max-width: 58ch;
+  line-height: 1.65;
+}
+
+.badge {
+  letter-spacing: 0.06em;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.page-main,
+.main,
+main {
+  max-width: 1100px;
+  width: 100%;
+}
+
+.page-main > .card,
+.main > .card,
+main > .card,
+.page-main > section,
+.main > section {
+  animation: design-reveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.page-main > *:nth-child(2),
+.main > *:nth-child(2) {
+  animation-delay: 0.07s;
+}
+
+.page-main > *:nth-child(3),
+.main > *:nth-child(3) {
+  animation-delay: 0.14s;
+}
+
+.page-main > *:nth-child(4),
+.main > *:nth-child(4) {
+  animation-delay: 0.21s;
+}
+
+@keyframes design-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+.card {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
+    0 12px 40px -20px color-mix(in srgb, var(--bg) 40%, #000);
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-2px);
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.btn {
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.btn--ghost:hover {
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.feature-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.feature-tile {
+  padding: 1.1rem 1.15rem;
+  border-radius: calc(var(--radius, 12px) - 2px);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 4%);
+}
+
+.feature-tile strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-family: var(--font-display, inherit);
+  font-size: 0.95rem;
+}
+
+.feature-tile span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.game-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.game-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  padding: 1.5rem 1.35rem;
+  border-radius: var(--radius, 14px);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  animation: design-reveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.game-card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.game-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 18%, transparent),
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow: 0 16px 48px -24px color-mix(in srgb, var(--accent) 70%, #000);
+}
+
+.game-card:hover::before {
+  opacity: 1;
+}
+
+.game-card__tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.65rem;
+}
+
+.game-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+  position: relative;
+}
+
+.game-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  position: relative;
+}
+
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.demo-note {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-main > *,
+  .main > *,
+  .game-card {
+    animation: none;
+  }
+
+  .card:hover,
+  .btn:hover,
+  .game-card:hover {
+    transform: none;
+  }
+}
+
   </style>
 </head>
-<body>
-  <header class="header">
-    <h1>HTML5 Canvas Mini Games</h1>
-    <p>High-DPI HTML5 canvas mini-games built with vanilla JavaScript.</p>
-  
-    <a class="header__github" href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+<body class="theme-arcade portfolio-designed">
+  <div class="bg-animation" aria-hidden="true"></div>
+  <header class="header landing-hero">
+    <div class="header__top">
+      <a class="header__brand" href="https://piyushm.dev">piyushm.dev</a>
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">
+        <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
+        <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">&#9789;</span>
+      </button>
+    </div>
+    <div class="header__inner">
+      <p class="eyebrow">HTML5 Canvas · Vanilla JS</p>
+      <h1>Mini Games Arcade</h1>
+      <p>High-DPI canvas games with tuned physics, medals, and arcade polish.</p>
+      <a class="header__github" href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+    </div>
   </header>
   <main class="page-main main">
-    <ul>
-      <li><a href="flappy-bird/index.html">Flappy Bird</a> — tap/click to fly through pipes</li>
-      <li><a href="space-shooter/index.html">Space Shooter</a> — dodge enemies and shoot beams</li>
-    </ul>
+    <div class="game-grid">
+      <a class="game-card" href="flappy-bird/index.html"><span class="game-card__tag">Arcade</span><h2>Flappy Bird</h2><p>Tap through pipes — medals and tuned gravity.</p></a>
+      <a class="game-card" href="space-shooter/index.html"><span class="game-card__tag">Shooter</span><h2>Space Shooter</h2><p>Dodge waves and chase high scores in neon space.</p></a>
+    </div>
   </main>
   <footer class="site-footer footer"><p>MIT © 2026 · <a href="https://piyushm.dev">piyushm.dev</a> · <a href="https://github.com/PiyushMishra318/HTML5-Canvas-Mini-Games" target="_blank" rel="noopener noreferrer">View on GitHub</a></p></footer>
   <script src="/theme.js"></script>
-<script>
-(function () {
-  var STORAGE_KEY = "portfolio-theme";
-  var root = document.documentElement;
-  function systemDark() {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  function apply(theme) {
-    root.setAttribute("data-theme", theme);
-    var btn = document.getElementById("theme-toggle");
-    if (btn) {
-      btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
-      btn.setAttribute("title", theme === "dark" ? "Light mode" : "Dark mode");
-    }
-  }
-  function resolve(stored) {
-    if (stored === "light" || stored === "dark") return stored;
-    return systemDark() ? "dark" : "light";
-  }
-  apply(resolve(localStorage.getItem(STORAGE_KEY)));
-  document.addEventListener("DOMContentLoaded", function () {
-    var btn = document.getElementById("theme-toggle");
-    if (!btn) return;
-    btn.addEventListener("click", function () {
-      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      localStorage.setItem(STORAGE_KEY, next);
-      apply(next);
-    });
-  });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    if (localStorage.getItem(STORAGE_KEY)) return;
-    apply(systemDark() ? "dark" : "light");
-  });
-})();
-</script>
 </body>
 </html>
